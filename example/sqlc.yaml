@@ -1,0 +1,86 @@
+version: "2"
+
+plugins:
+  - name: per-file
+    wasm:
+      url: file://../bin/sqlc-gen-go.wasm
+      sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
+
+overrides:
+  go:
+    # Override more fields if needed https://github.com/sqlc-dev/sqlc/blob/main/internal/codegen/golang/postgresql_type.go#L12
+    overrides:
+      - db_type: "pg_catalog.timestamptz"
+        nullable: true
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: true
+      - db_type: "pg_catalog.timestamptz"
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: false
+      - db_type: "pg_catalog.timestamp"
+        nullable: true
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: true
+      - db_type: "pg_catalog.timestamp"
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: false
+      - db_type: "timestamp"
+        nullable: true
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: true
+      - db_type: "timestamp"
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: false
+      - db_type: "timestamptz"
+        nullable: true
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: true
+      - db_type: "timestamptz"
+        go_type:
+          import: "time"
+          type: "Time"
+          pointer: false
+      - db_type: "jsonb"
+        go_type:
+          type: "[]byte"
+          pointer: false
+      - db_type: "jsonb"
+        nullable: true
+        go_type:
+          pointer: true
+          type: "[]byte"
+
+sql:
+  - schema: schema.sql
+    queries: queries/
+    engine: postgresql
+    codegen:
+      - out: db
+        plugin: per-file
+        options:
+          package: db
+          sql_package: "pgx/v4"
+          emit_pointers_for_null_types: true
+          emit_empty_slices: true
+          emit_interface: true
+          emit_result_struct_pointers: true
+          emit_enum_valid_method: false
+          emit_all_enum_values: true
+          omit_unused_structs: true
+          emit_methods_with_db_argument: true
+          query_parameter_limit: 0
+          emit_per_file_queries: true

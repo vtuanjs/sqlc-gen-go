@@ -44,6 +44,7 @@ type Options struct {
 	OmitUnusedStructs           bool              `json:"omit_unused_structs,omitempty" yaml:"omit_unused_structs"`
 	BuildTags                   string            `json:"build_tags,omitempty" yaml:"build_tags"`
 	Initialisms                 *[]string         `json:"initialisms,omitempty" yaml:"initialisms"`
+	EmitPerFileQueries          bool              `json:"emit_per_file_queries,omitempty" yaml:"emit_per_file_queries"`
 
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
 }
@@ -146,6 +147,9 @@ func parseGlobalOpts(req *plugin.GenerateRequest) (*GlobalOptions, error) {
 func ValidateOpts(opts *Options) error {
 	if opts.EmitMethodsWithDbArgument && opts.EmitPreparedQueries {
 		return fmt.Errorf("invalid options: emit_methods_with_db_argument and emit_prepared_queries options are mutually exclusive")
+	}
+	if opts.EmitPerFileQueries && opts.EmitPreparedQueries {
+		return fmt.Errorf("invalid options: emit_per_file_queries and emit_prepared_queries options are mutually exclusive")
 	}
 	if *opts.QueryParameterLimit < 0 {
 		return fmt.Errorf("invalid options: query parameter limit must not be negative")

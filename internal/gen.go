@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"go/format"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -41,10 +42,40 @@ type tmplCtx struct {
 	UsesBatch                 bool
 	OmitSqlcVersion           bool
 	BuildTags                 string
+	EmitPerFileQueries        bool
+	StructName                string // "Queries" or e.g. "UsersQueries"
+	InterfaceName             string // "Querier" or e.g. "UsersQuerier"
 }
 
 func (t *tmplCtx) OutputQuery(sourceName string) bool {
 	return t.SourceName == sourceName
+}
+
+// OutputInterfaceMethod returns true when the given query's source should be
+// included in the currently-rendered interface. In per-file mode, only methods
+// from the current source file are included; otherwise all methods are included.
+func (t *tmplCtx) OutputInterfaceMethod(sourceName string) bool {
+	if !t.EmitPerFileQueries {
+		return true
+	}
+	return t.SourceName == sourceName
+}
+
+// sourceNameToPrefix converts a SQL source file name to a Go identifier prefix.
+// e.g. "users.sql" -> "Users", "user_orders.sql" -> "UserOrders"
+func sourceNameToPrefix(sourceName string) string {
+	base := filepath.Base(sourceName)
+	for ext := filepath.Ext(base); ext != ""; ext = filepath.Ext(base) {
+		base = strings.TrimSuffix(base, ext)
+	}
+	parts := strings.FieldsFunc(base, func(r rune) bool { return r == '_' || r == '-' })
+	var sb strings.Builder
+	for _, p := range parts {
+		if len(p) > 0 {
+			sb.WriteString(strings.ToUpper(p[:1]) + p[1:])
+		}
+	}
+	return sb.String()
 }
 
 func (t *tmplCtx) codegenDbarg() string {
@@ -187,6 +218,9 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		SqlcVersion:               req.SqlcVersion,
 		BuildTags:                 options.BuildTags,
 		OmitSqlcVersion:           options.OmitSqlcVersion,
+		EmitPerFileQueries:        options.EmitPerFileQueries,
+		StructName:                "Queries",
+		InterfaceName:             "Querier",
 	}
 
 	if tctx.UsesCopyFrom && !tctx.SQLDriver.IsPGX() && options.SqlDriver != opts.SQLDriverGoSQLDriverMySQL {
@@ -240,6 +274,14 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		w := bufio.NewWriter(&b)
 		tctx.SourceName = name
 		tctx.GoQueries = replacedQueries
+		if options.EmitPerFileQueries && templateName == "queryFile" {
+			prefix := sourceNameToPrefix(name)
+			tctx.StructName = prefix + "Queries"
+			tctx.InterfaceName = prefix + "Querier"
+		} else {
+			tctx.StructName = "Queries"
+			tctx.InterfaceName = "Querier"
+		}
 		err := tmpl.ExecuteTemplate(w, templateName, &tctx)
 		w.Flush()
 		if err != nil {
@@ -290,7 +332,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 	if err := execute(modelsFileName, "modelsFile"); err != nil {
 		return nil, err
 	}
-	if options.EmitInterface {
+	if options.EmitInterface && !options.EmitPerFileQueries {
 		if err := execute(querierFileName, "interfaceFile"); err != nil {
 			return nil, err
 		}

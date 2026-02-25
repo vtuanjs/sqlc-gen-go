@@ -183,6 +183,9 @@ import (
 {{end}}
 
 {{template "queryCode" . }}
+{{if and .EmitPerFileQueries .EmitInterface}}
+{{template "interfaceCode" . }}
+{{end}}
 {{end}}
 
 {{define "queryCode"}}

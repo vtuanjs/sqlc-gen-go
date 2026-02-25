@@ -6,6 +6,7 @@ type DBTX interface {
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
 }
 
+{{if not .EmitPerFileQueries}}
 {{ if .EmitMethodsWithDBArgument}}
 func New() *Queries {
 	return &Queries{}
@@ -101,5 +102,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		{{- end}}
 	}
 }
+{{end}}
 {{end}}
 {{end}}
