@@ -109,6 +109,36 @@ The differences are:
 * An additional top-level `plugins` list with an entry for the Go codegen WASM plugin. If you’ve built the plugin from source you’ll want to use a `file://` URL. The `sha256` field is required, but will be optional in the upcoming sqlc v1.24.0 release.
 * Within the `sql` block, rather than `gen` with `go` nested beneath you’ll have a `codegen` list with an entry referencing the plugin name from the top-level `plugins` list. All options from the current `go` configuration block move as-is into the `options` block within `codegen`. The only special case is `out`, which moves up a level into the `codegen` configuration itself.
 
+## Options
+
+### `emit_per_file_queries`
+
+When set to `true`, each SQL source file gets its own named struct and interface derived from the file name, instead of sharing a single `Queries` struct and `Querier` interface across all files.
+
+| SQL file | Struct | Interface |
+|---|---|---|
+| `users.sql` | `UsersQueries` | `UsersQuerier` |
+| `user_orders.sql` | `UserOrdersQueries` | `UserOrdersQuerier` |
+
+**Example configuration:**
+
+```yaml
+options:
+  emit_interface: true
+  emit_per_file_queries: true
+```
+
+**Effect on generated files:**
+
+- `users.sql.go` — contains `UsersQueries` struct, `NewUsersQueries()` constructor, query methods, and (if `emit_interface: true`) the `UsersQuerier` interface
+- `orders.sql.go` — contains `OrdersQueries`, `NewOrdersQueries()`, and `OrdersQuerier`
+- `db.go` — only the shared `DBTX` interface; the `Queries` struct and `New()` are **not** generated
+- `querier.go` — **not** generated (interfaces are embedded in each SQL file instead)
+
+**Constraints:** `emit_per_file_queries` and `emit_prepared_queries` are mutually exclusive.
+
+---
+
 ### Global overrides and renames
 
 If you have global overrides or renames configured, you’ll need to move those to the new top-level `options` field. Replace the existing `go` field name with the name you gave your plugin in the `plugins` list. We’ve used `"golang"` in this example.
