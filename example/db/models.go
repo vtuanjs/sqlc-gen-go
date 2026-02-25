@@ -7,13 +7,13 @@ package db
 import (
 	"time"
 
-	"github.com/jackc/pgtype"
+	decimal "github.com/shopspring/decimal"
 )
 
 type Order struct {
 	ID        int64
 	UserID    int64
-	Amount    pgtype.Numeric
+	Amount    decimal.Decimal
 	Status    string
 	CreatedAt time.Time
 }

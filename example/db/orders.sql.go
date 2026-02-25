@@ -8,7 +8,7 @@ package db
 import (
 	"context"
 
-	"github.com/jackc/pgtype"
+	decimal "github.com/shopspring/decimal"
 )
 
 func NewOrdersQueries() *OrdersQueries {
@@ -26,7 +26,7 @@ RETURNING id, user_id, amount, status, created_at
 
 type CreateOrderParams struct {
 	UserID int64
-	Amount pgtype.Numeric
+	Amount decimal.Decimal
 	Status string
 }
 
