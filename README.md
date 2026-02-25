@@ -12,8 +12,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://downloads.sqlc.dev/plugin/sqlc-gen-go_1.5.0.wasm
-    sha256: 4ca52949f4dc04b55188439f5de0ae20af2a71e3534b87907f2a7f466bda59ec
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v.1.5.0/sqlc-gen-go.wasm
+    sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -84,8 +84,8 @@ version: 2
 plugins:
 - name: golang
   wasm:
-    url: https://downloads.sqlc.dev/plugin/sqlc-gen-go_1.3.0.wasm
-    sha256: e8206081686f95b461daf91a307e108a761526c6768d6f3eca9781b0726b7ec8
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v.1.5.0/sqlc-gen-go.wasm
+    sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
 sql:
 - schema: "query.sql"
   queries: "query.sql"
@@ -169,8 +169,8 @@ version: "2"
 plugins:
 - name: golang
   wasm:
-    url: https://downloads.sqlc.dev/plugin/sqlc-gen-go_1.3.0.wasm
-    sha256: e8206081686f95b461daf91a307e108a761526c6768d6f3eca9781b0726b7ec8
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v.1.5.0/sqlc-gen-go.wasm
+    sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
 options:
   golang:
     rename:
