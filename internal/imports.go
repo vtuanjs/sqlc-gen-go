@@ -402,15 +402,19 @@ func (i *importer) queryImports(filename string) fileImports {
 		pkg[ImportSpec{Path: "github.com/lib/pq"}] = struct{}{}
 	}
 
-	if i.Options.EmitErrNilIfNoRows && sqlpkg.IsPGX() {
+	if i.Options.EmitErrNilIfNoRows {
 		for _, q := range gq {
 			if q.Cmd == metadata.CmdOne && q.IsSelect() {
 				std["errors"] = struct{}{}
-				switch sqlpkg {
-				case opts.SQLDriverPGXV4:
-					pkg[ImportSpec{Path: "github.com/jackc/pgx/v4"}] = struct{}{}
-				case opts.SQLDriverPGXV5:
-					pkg[ImportSpec{Path: "github.com/jackc/pgx/v5"}] = struct{}{}
+				if sqlpkg.IsPGX() {
+					switch sqlpkg {
+					case opts.SQLDriverPGXV4:
+						pkg[ImportSpec{Path: "github.com/jackc/pgx/v4"}] = struct{}{}
+					case opts.SQLDriverPGXV5:
+						pkg[ImportSpec{Path: "github.com/jackc/pgx/v5"}] = struct{}{}
+					}
+				} else {
+					std["database/sql"] = struct{}{}
 				}
 				break
 			}

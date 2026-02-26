@@ -4,7 +4,7 @@ plugins:
   - name: golang
     wasm:
       url: file://../bin/sqlc-gen-go.wasm
-      sha256: 0c7b741cc41baa84c3b27ee63c350aa14a73e0760707c4469d01ec8743ebfa9f
+      sha256: 00a9eb9f918357174f0bada0a16e669482f8a4328ad5f4e54a4121c875f2fdd5
 
 options:
   golang:
