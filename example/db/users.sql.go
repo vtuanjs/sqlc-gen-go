@@ -7,6 +7,10 @@ package db
 
 import (
 	"context"
+	"errors"
+
+	tracing "example"
+	"github.com/jackc/pgx/v4"
 )
 
 func NewUsersQueries() *UsersQueries {
@@ -28,6 +32,8 @@ type CreateUserParams struct {
 }
 
 func (q *UsersQueries) CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.CreateUser")
+	defer tracer.End()
 	row := db.QueryRow(ctx, createUser, arg.Name, arg.Email)
 	var i User
 	err := row.Scan(
@@ -44,12 +50,10 @@ const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1
 `
 
-type DeleteUserParams struct {
-	ID int64
-}
-
-func (q *UsersQueries) DeleteUser(ctx context.Context, db DBTX, arg DeleteUserParams) error {
-	_, err := db.Exec(ctx, deleteUser, arg.ID)
+func (q *UsersQueries) DeleteUser(ctx context.Context, db DBTX, id int64) error {
+	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.DeleteUser")
+	defer tracer.End()
+	_, err := db.Exec(ctx, deleteUser, id)
 	return err
 }
 
@@ -57,12 +61,10 @@ const getUser = `-- name: GetUser :one
 SELECT id, name, email, created_at, phone FROM users WHERE id = $1 LIMIT 1
 `
 
-type GetUserParams struct {
-	ID int64
-}
-
-func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error) {
-	row := db.QueryRow(ctx, getUser, arg.ID)
+func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, id int64) (*User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.GetUser")
+	defer tracer.End()
+	row := db.QueryRow(ctx, getUser, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -71,6 +73,9 @@ func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, arg GetUserParams) 
 		&i.CreatedAt,
 		&i.Phone,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	return &i, err
 }
 
@@ -78,12 +83,10 @@ const listUsers = `-- name: ListUsers :many
 SELECT id, name, email, created_at, phone FROM users WHERE name = ANY($1::text[]) ORDER BY name
 `
 
-type ListUsersParams struct {
-	Names []string
-}
-
-func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]*User, error) {
-	rows, err := db.Query(ctx, listUsers, arg.Names)
+func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, names []string) ([]*User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.ListUsers")
+	defer tracer.End()
+	rows, err := db.Query(ctx, listUsers, names)
 	if err != nil {
 		return nil, err
 	}
@@ -108,11 +111,40 @@ func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersPara
 	return items, nil
 }
 
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET name = $1, email = $2
+WHERE id = $3
+RETURNING id, name, email, created_at, phone
+`
+
+type UpdateUserParams struct {
+	Name  string
+	Email string
+	ID    int64
+}
+
+func (q *UsersQueries) UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.UpdateUser")
+	defer tracer.End()
+	row := db.QueryRow(ctx, updateUser, arg.Name, arg.Email, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.CreatedAt,
+		&i.Phone,
+	)
+	return &i, err
+}
+
 type UsersQuerier interface {
 	CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error)
-	DeleteUser(ctx context.Context, db DBTX, arg DeleteUserParams) error
-	GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error)
-	ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]*User, error)
+	DeleteUser(ctx context.Context, db DBTX, id int64) error
+	GetUser(ctx context.Context, db DBTX, id int64) (*User, error)
+	ListUsers(ctx context.Context, db DBTX, names []string) ([]*User, error)
+	UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error)
 }
 
 var _ UsersQuerier = (*UsersQueries)(nil)

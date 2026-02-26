@@ -12,8 +12,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.5.0/sqlc-gen-go.wasm
-    sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.6.0/sqlc-gen-go.wasm
+    sha256: 3d401e627cc0a59ca38de09b287dd6e74b073a961e40891ebfb7047f3b987881
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -84,8 +84,8 @@ version: 2
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.5.0/sqlc-gen-go.wasm
-    sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.6.0/sqlc-gen-go.wasm
+    sha256: 3d401e627cc0a59ca38de09b287dd6e74b073a961e40891ebfb7047f3b987881
 sql:
 - schema: "query.sql"
   queries: "query.sql"
@@ -139,6 +139,68 @@ options:
 
 ---
 
+### `emit_err_nil_if_no_rows`
+
+When set to `true`, `:one` SELECT queries return `nil, nil` instead of `nil, pgx.ErrNoRows` (or `sql.ErrNoRows`) when no row is found.
+
+**Example configuration:**
+
+```yaml
+options:
+  emit_err_nil_if_no_rows: true
+```
+
+**Effect on generated code:**
+
+```go
+func (q *Queries) GetUser(ctx context.Context, arg GetUserParams) (*User, error) {
+    row := q.db.QueryRowContext(ctx, getUser, arg.ID)
+    var i User
+    err := row.Scan(&i.ID, &i.Name)
+    if errors.Is(err, sql.ErrNoRows) {
+        return nil, nil
+    }
+    return &i, err
+}
+```
+
+---
+
+### `emit_tracing`
+
+Injects custom tracing code at the start of every generated query method. Supports `{{.MethodName}}` and `{{.StructName}}` template variables.
+
+| Field | Description |
+|---|---|
+| `import` | Import path of the tracing package |
+| `package` | Package alias (if different from the last segment of `import`) |
+| `code` | List of lines to inject; each line is a Go template |
+
+**Example configuration:**
+
+```yaml
+options:
+  emit_tracing:
+    import: "go.opentelemetry.io/otel"
+    package: "otel"
+    code:
+      - "ctx, span := otel.Tracer(\"{{.StructName}}\").Start(ctx, \"{{.MethodName}}\")"
+      - "defer span.End()"
+```
+
+**Effect on generated code:**
+
+```go
+func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error) {
+    ctx, span := otel.Tracer("UsersQueries").Start(ctx, "GetUser")
+    defer span.End()
+    row := db.QueryRow(ctx, getUser, arg.ID)
+    ...
+}
+```
+
+---
+
 ### Global overrides and renames
 
 If you have global overrides or renames configured, you’ll need to move those to the new top-level `options` field. Replace the existing `go` field name with the name you gave your plugin in the `plugins` list. We’ve used `"golang"` in this example.
@@ -169,8 +231,8 @@ version: "2"
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.5.0/sqlc-gen-go.wasm
-    sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.6.0/sqlc-gen-go.wasm
+    sha256: 3d401e627cc0a59ca38de09b287dd6e74b073a961e40891ebfb7047f3b987881
 options:
   golang:
     rename:

@@ -269,6 +269,11 @@ type Query struct {
 	Table *plugin.Identifier
 }
 
+func (q Query) IsSelect() bool {
+	upper := strings.ToUpper(strings.TrimSpace(q.SQL))
+	return strings.HasPrefix(upper, "SELECT") || strings.HasPrefix(upper, "WITH")
+}
+
 func (q Query) hasRetType() bool {
 	scanned := q.Cmd == metadata.CmdOne || q.Cmd == metadata.CmdMany ||
 		q.Cmd == metadata.CmdBatchMany || q.Cmd == metadata.CmdBatchOne

@@ -4,7 +4,7 @@ plugins:
   - name: golang
     wasm:
       url: file://../bin/sqlc-gen-go.wasm
-      sha256: c235a882269998d17994c5363bf4749bd1d751999728bdcf22a705ce4f312125
+      sha256: 3d401e627cc0a59ca38de09b287dd6e74b073a961e40891ebfb7047f3b987881
 
 options:
   golang:
@@ -96,3 +96,10 @@ sql:
           emit_methods_with_db_argument: true
           query_parameter_limit: 0
           emit_per_file_queries: true
+          emit_err_nil_if_no_rows: true
+          emit_tracing:
+            import: "example"
+            package: "tracing"
+            code:
+              - "ctx, tracer := tracing.StartTracing(ctx, \"{{.StructName}}.{{.MethodName}}\")"
+              - "defer tracer.End()"

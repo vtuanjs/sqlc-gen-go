@@ -44,11 +44,16 @@ type {{.Ret.Type}} struct { {{- range .Ret.Struct.Fields}}
 {{range .Comments}}//{{.}}
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) ({{.Ret.DefineType}}, error) {
-    {{- template "queryCodeStdExec" . }}
+{{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
 	{{- if or (ne .Arg.Pair .Ret.Pair) (ne .Arg.DefineType .Ret.DefineType) }}
 	var {{.Ret.Name}} {{.Ret.Type}}
 	{{- end}}
 	err := row.Scan({{.Ret.Scan}})
+	{{- if and $.EmitErrNilIfNoRows .IsSelect}}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	{{- end}}
 	return {{.Ret.ReturnName}}, err
 }
 {{end}}
@@ -57,7 +62,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{range .Comments}}//{{.}}
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
-    {{- template "queryCodeStdExec" . }}
+{{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
         return nil, err
     }
@@ -88,7 +93,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{range .Comments}}//{{.}}
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) error {
-    {{- template "queryCodeStdExec" . }}
+{{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     return err
 }
 {{end}}
@@ -97,7 +102,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{range .Comments}}//{{.}}
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) (int64, error) {
-    {{- template "queryCodeStdExec" . }}
+{{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
         return 0, err
     }
@@ -109,7 +114,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{range .Comments}}//{{.}}
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) (int64, error) {
-    {{- template "queryCodeStdExec" . }}
+{{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
         return 0, err
     }
@@ -121,7 +126,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{range .Comments}}//{{.}}
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) (sql.Result, error) {
-    {{- template "queryCodeStdExec" . }}
+{{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
 }
 {{end}}
 

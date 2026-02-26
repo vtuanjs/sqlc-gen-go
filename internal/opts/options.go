@@ -45,8 +45,16 @@ type Options struct {
 	BuildTags                   string            `json:"build_tags,omitempty" yaml:"build_tags"`
 	Initialisms                 *[]string         `json:"initialisms,omitempty" yaml:"initialisms"`
 	EmitPerFileQueries          bool              `json:"emit_per_file_queries,omitempty" yaml:"emit_per_file_queries"`
+	EmitErrNilIfNoRows          bool              `json:"emit_err_nil_if_no_rows,omitempty" yaml:"emit_err_nil_if_no_rows"`
+	EmitTracing                 *TracingOptions   `json:"emit_tracing,omitempty" yaml:"emit_tracing"`
 
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
+}
+
+type TracingOptions struct {
+	Import  string   `json:"import" yaml:"import"`
+	Package string   `json:"package" yaml:"package"`
+	Code    []string `json:"code" yaml:"code"`
 }
 
 type GlobalOptions struct {
