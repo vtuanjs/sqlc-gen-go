@@ -7,7 +7,9 @@ package db
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v4"
 	decimal "github.com/shopspring/decimal"
 )
 
@@ -61,6 +63,9 @@ func (q *OrdersQueries) GetOrder(ctx context.Context, db DBTX, arg GetOrderParam
 		&i.Status,
 		&i.CreatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	return &i, err
 }
 
@@ -86,6 +91,9 @@ func (q *OrdersQueries) GetUserOrderSummary(ctx context.Context, db DBTX, arg Ge
 	row := db.QueryRow(ctx, getUserOrderSummary, arg.ID)
 	var i GetUserOrderSummaryRow
 	err := row.Scan(&i.Name, &i.OrderCount, &i.TotalSpent)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	return &i, err
 }
 

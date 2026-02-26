@@ -45,6 +45,7 @@ type Options struct {
 	BuildTags                   string            `json:"build_tags,omitempty" yaml:"build_tags"`
 	Initialisms                 *[]string         `json:"initialisms,omitempty" yaml:"initialisms"`
 	EmitPerFileQueries          bool              `json:"emit_per_file_queries,omitempty" yaml:"emit_per_file_queries"`
+	EmitErrNilIfNoRows          bool              `json:"emit_err_nil_if_no_rows,omitempty" yaml:"emit_err_nil_if_no_rows"`
 
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
 }

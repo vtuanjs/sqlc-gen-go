@@ -43,6 +43,7 @@ type tmplCtx struct {
 	OmitSqlcVersion           bool
 	BuildTags                 string
 	EmitPerFileQueries        bool
+	EmitErrNilIfNoRows        bool
 	StructName                string // "Queries" or e.g. "UsersQueries"
 	InterfaceName             string // "Querier" or e.g. "UsersQuerier"
 }
@@ -219,6 +220,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		BuildTags:                 options.BuildTags,
 		OmitSqlcVersion:           options.OmitSqlcVersion,
 		EmitPerFileQueries:        options.EmitPerFileQueries,
+		EmitErrNilIfNoRows:        options.EmitErrNilIfNoRows,
 		StructName:                "Queries",
 		InterfaceName:             "Querier",
 	}

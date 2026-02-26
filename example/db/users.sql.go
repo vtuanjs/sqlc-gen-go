@@ -7,6 +7,9 @@ package db
 
 import (
 	"context"
+	"errors"
+
+	"github.com/jackc/pgx/v4"
 )
 
 func NewUsersQueries() *UsersQueries {
@@ -71,6 +74,9 @@ func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, arg GetUserParams) 
 		&i.CreatedAt,
 		&i.Phone,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	return &i, err
 }
 
@@ -108,11 +114,38 @@ func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersPara
 	return items, nil
 }
 
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET name = $1, email = $2
+WHERE id = $3
+RETURNING id, name, email, created_at, phone
+`
+
+type UpdateUserParams struct {
+	Name  string
+	Email string
+	ID    int64
+}
+
+func (q *UsersQueries) UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error) {
+	row := db.QueryRow(ctx, updateUser, arg.Name, arg.Email, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.CreatedAt,
+		&i.Phone,
+	)
+	return &i, err
+}
+
 type UsersQuerier interface {
 	CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error)
 	DeleteUser(ctx context.Context, db DBTX, arg DeleteUserParams) error
 	GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error)
 	ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]*User, error)
+	UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error)
 }
 
 var _ UsersQuerier = (*UsersQueries)(nil)
