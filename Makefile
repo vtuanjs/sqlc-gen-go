@@ -20,4 +20,4 @@ bin:
 	mkdir -p bin
 
 generate-example:
-	cd example && sqlc generate
+	cd example && sqlc generate && go generate ./...

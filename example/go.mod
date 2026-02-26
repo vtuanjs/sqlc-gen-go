@@ -6,6 +6,7 @@ require (
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/shopspring/decimal v1.2.0
+	go.uber.org/mock v0.6.0
 )
 
 require (

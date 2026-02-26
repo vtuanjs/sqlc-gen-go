@@ -4,7 +4,7 @@ plugins:
   - name: golang
     wasm:
       url: file://../bin/sqlc-gen-go.wasm
-      sha256: 3d401e627cc0a59ca38de09b287dd6e74b073a961e40891ebfb7047f3b987881
+      sha256: 996233111f91edd925266b9c52645b581fe8d16e751c412d9a59179b70f3cb90
 
 options:
   golang:
@@ -103,3 +103,6 @@ sql:
             code:
               - "ctx, tracer := tracing.StartTracing(ctx, \"{{.StructName}}.{{.MethodName}}\")"
               - "defer tracer.End()"
+          go_generate: "mockgen -source=$GOFILE -destination=mock/$GOFILE -package=mock"
+          omit_sqlc_version: true
+
