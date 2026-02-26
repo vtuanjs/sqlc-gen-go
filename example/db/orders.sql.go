@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 
+	tracing "example"
 	"github.com/jackc/pgx/v4"
 	decimal "github.com/shopspring/decimal"
 )
@@ -33,6 +34,8 @@ type CreateOrderParams struct {
 }
 
 func (q *OrdersQueries) CreateOrder(ctx context.Context, db DBTX, arg CreateOrderParams) (*Order, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.CreateOrder")
+	defer tracer.End()
 	row := db.QueryRow(ctx, createOrder, arg.UserID, arg.Amount, arg.Status)
 	var i Order
 	err := row.Scan(
@@ -49,12 +52,10 @@ const getOrder = `-- name: GetOrder :one
 SELECT id, user_id, amount, status, created_at FROM orders WHERE id = $1 LIMIT 1
 `
 
-type GetOrderParams struct {
-	ID int64
-}
-
-func (q *OrdersQueries) GetOrder(ctx context.Context, db DBTX, arg GetOrderParams) (*Order, error) {
-	row := db.QueryRow(ctx, getOrder, arg.ID)
+func (q *OrdersQueries) GetOrder(ctx context.Context, db DBTX, id int64) (*Order, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.GetOrder")
+	defer tracer.End()
+	row := db.QueryRow(ctx, getOrder, id)
 	var i Order
 	err := row.Scan(
 		&i.ID,
@@ -77,18 +78,16 @@ WHERE u.id = $1
 GROUP BY u.name
 `
 
-type GetUserOrderSummaryParams struct {
-	ID int64
-}
-
 type GetUserOrderSummaryRow struct {
 	Name       string
 	OrderCount int64
 	TotalSpent interface{}
 }
 
-func (q *OrdersQueries) GetUserOrderSummary(ctx context.Context, db DBTX, arg GetUserOrderSummaryParams) (*GetUserOrderSummaryRow, error) {
-	row := db.QueryRow(ctx, getUserOrderSummary, arg.ID)
+func (q *OrdersQueries) GetUserOrderSummary(ctx context.Context, db DBTX, id int64) (*GetUserOrderSummaryRow, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.GetUserOrderSummary")
+	defer tracer.End()
+	row := db.QueryRow(ctx, getUserOrderSummary, id)
 	var i GetUserOrderSummaryRow
 	err := row.Scan(&i.Name, &i.OrderCount, &i.TotalSpent)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -101,12 +100,10 @@ const listOrdersByUser = `-- name: ListOrdersByUser :many
 SELECT id, user_id, amount, status, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC
 `
 
-type ListOrdersByUserParams struct {
-	UserID int64
-}
-
-func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]*Order, error) {
-	rows, err := db.Query(ctx, listOrdersByUser, arg.UserID)
+func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, userID int64) ([]*Order, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.ListOrdersByUser")
+	defer tracer.End()
+	rows, err := db.Query(ctx, listOrdersByUser, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,15 +138,17 @@ type UpdateOrderStatusParams struct {
 }
 
 func (q *OrdersQueries) UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) error {
+	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.UpdateOrderStatus")
+	defer tracer.End()
 	_, err := db.Exec(ctx, updateOrderStatus, arg.ID, arg.Status)
 	return err
 }
 
 type OrdersQuerier interface {
 	CreateOrder(ctx context.Context, db DBTX, arg CreateOrderParams) (*Order, error)
-	GetOrder(ctx context.Context, db DBTX, arg GetOrderParams) (*Order, error)
-	GetUserOrderSummary(ctx context.Context, db DBTX, arg GetUserOrderSummaryParams) (*GetUserOrderSummaryRow, error)
-	ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]*Order, error)
+	GetOrder(ctx context.Context, db DBTX, id int64) (*Order, error)
+	GetUserOrderSummary(ctx context.Context, db DBTX, id int64) (*GetUserOrderSummaryRow, error)
+	ListOrdersByUser(ctx context.Context, db DBTX, userID int64) ([]*Order, error)
 	UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) error
 }
 

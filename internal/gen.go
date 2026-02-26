@@ -46,6 +46,7 @@ type tmplCtx struct {
 	EmitErrNilIfNoRows        bool
 	StructName                string // "Queries" or e.g. "UsersQueries"
 	InterfaceName             string // "Querier" or e.g. "UsersQuerier"
+	EmitTracing               *opts.TracingOptions
 }
 
 func (t *tmplCtx) OutputQuery(sourceName string) bool {
@@ -77,6 +78,33 @@ func sourceNameToPrefix(sourceName string) string {
 		}
 	}
 	return sb.String()
+}
+
+func (t *tmplCtx) codegenTracingCode(methodName string) (string, error) {
+	if t.EmitTracing == nil || len(t.EmitTracing.Code) == 0 {
+		return "", nil
+	}
+	data := struct {
+		MethodName string
+		StructName string
+	}{
+		MethodName: methodName,
+		StructName: t.StructName,
+	}
+	var sb strings.Builder
+	for _, line := range t.EmitTracing.Code {
+		tmpl, err := template.New("").Parse(line)
+		if err != nil {
+			return "", fmt.Errorf("tracing code template: %w", err)
+		}
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, data); err != nil {
+			return "", fmt.Errorf("tracing code execute: %w", err)
+		}
+		sb.WriteString(buf.String())
+		sb.WriteString("\n")
+	}
+	return sb.String(), nil
 }
 
 func (t *tmplCtx) codegenDbarg() string {
@@ -223,6 +251,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		EmitErrNilIfNoRows:        options.EmitErrNilIfNoRows,
 		StructName:                "Queries",
 		InterfaceName:             "Querier",
+		EmitTracing:               options.EmitTracing,
 	}
 
 	if tctx.UsesCopyFrom && !tctx.SQLDriver.IsPGX() && options.SqlDriver != opts.SQLDriverGoSQLDriverMySQL {
@@ -254,6 +283,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		"emitPreparedQueries": tctx.codegenEmitPreparedQueries,
 		"queryMethod":         tctx.codegenQueryMethod,
 		"queryRetval":         tctx.codegenQueryRetval,
+		"tracingCode":         tctx.codegenTracingCode,
 	}
 
 	tmpl := template.Must(

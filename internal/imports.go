@@ -402,6 +402,16 @@ func (i *importer) queryImports(filename string) fileImports {
 		pkg[ImportSpec{Path: "github.com/lib/pq"}] = struct{}{}
 	}
 
+	if i.Options.EmitTracing != nil && len(gq) > 0 {
+		parts := strings.Split(i.Options.EmitTracing.Import, "/")
+		importBase := parts[len(parts)-1]
+		alias := ""
+		if i.Options.EmitTracing.Package != "" && i.Options.EmitTracing.Package != importBase {
+			alias = i.Options.EmitTracing.Package
+		}
+		pkg[ImportSpec{Path: i.Options.EmitTracing.Import, ID: alias}] = struct{}{}
+	}
+
 	if i.Options.EmitErrNilIfNoRows {
 		for _, q := range gq {
 			if q.Cmd == metadata.CmdOne && q.IsSelect() {
