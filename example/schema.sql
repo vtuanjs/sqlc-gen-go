@@ -13,3 +13,11 @@ CREATE TABLE orders (
     status     TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE products (
+    id         BIGSERIAL PRIMARY KEY,
+    name       TEXT,
+    price      NUMERIC(10,2) NOT NULL,
+    stock      INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

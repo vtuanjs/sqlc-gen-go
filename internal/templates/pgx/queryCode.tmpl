@@ -60,7 +60,11 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (
 	err := row.Scan({{.Ret.Scan}})
 	{{- if and $.EmitErrNilIfNoRows .IsSelect}}
 	if errors.Is(err, pgx.ErrNoRows) {
+		{{- if hasPrefix .Ret.DefineType "*"}}
 		return nil, nil
+		{{- else}}
+		return {{.Ret.Name}}, nil
+		{{- end}}
 	}
 	{{- end }}
 	return {{.Ret.ReturnName}}, err

@@ -51,7 +51,11 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 	err := row.Scan({{.Ret.Scan}})
 	{{- if and $.EmitErrNilIfNoRows .IsSelect}}
 	if errors.Is(err, sql.ErrNoRows) {
+		{{- if hasPrefix .Ret.DefineType "*"}}
 		return nil, nil
+		{{- else}}
+		return {{.Ret.Name}}, nil
+		{{- end}}
 	}
 	{{- end}}
 	return {{.Ret.ReturnName}}, err

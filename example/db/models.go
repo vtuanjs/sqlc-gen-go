@@ -16,6 +16,14 @@ type Order struct {
 	CreatedAt time.Time
 }
 
+type Product struct {
+	ID        int64
+	Name      *string
+	Price     decimal.Decimal
+	Stock     *int32
+	CreatedAt time.Time
+}
+
 type User struct {
 	ID        int64
 	Name      string
