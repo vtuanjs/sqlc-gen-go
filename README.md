@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.1/sqlc-gen-go.wasm
-    sha256: 96e87060d2084575f3d0e433f6674ffcc2aba20ddede02083baf6e3e4317ee03
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.2/sqlc-gen-go.wasm
+    sha256: d1dc8aaf8976dc5aa8579123f2e447c303fe468b00a32bd0b614e7e291d45c22
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.1/sqlc-gen-go.wasm
-    sha256: 96e87060d2084575f3d0e433f6674ffcc2aba20ddede02083baf6e3e4317ee03
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.2/sqlc-gen-go.wasm
+    sha256: d1dc8aaf8976dc5aa8579123f2e447c303fe468b00a32bd0b614e7e291d45c22
 sql:
 - engine: postgresql
   codegen:
@@ -147,16 +147,19 @@ options:
 
 ---
 
-### `go_generate`
+### `go_generate_mock`
 
-Adds a `//go:generate` directive to each `*.sql.go` file. `$GOFILE` expands to the current filename at generate time.
+Adds a `//go:generate` directive for mock generation. `$GOFILE` expands to the current filename at generate time.
+
+- When `emit_per_file_queries` is enabled: the directive is added to each `*.sql.go` file.
+- Otherwise: the directive is added only to the `querier.go` file.
 
 ```yaml
 options:
-  go_generate: "mockgen -source=$GOFILE -destination=mock/$GOFILE -package=mock"
+  go_generate_mock: "mockgen -source=$GOFILE -destination=mock/$GOFILE -package=mock"
 ```
 
-Running `go generate ./...` produces a mock per SQL file:
+Running `go generate ./...` produces a mock per SQL file (with `emit_per_file_queries`):
 
 | Source | Mock |
 |---|---|

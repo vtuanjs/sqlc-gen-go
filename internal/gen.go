@@ -47,7 +47,7 @@ type tmplCtx struct {
 	StructName                string // "Queries" or e.g. "UsersQueries"
 	InterfaceName             string // "Querier" or e.g. "UsersQuerier"
 	EmitTracing               *opts.TracingOptions
-	GoGenerate                string
+	GoGenerateMock            string
 }
 
 func (t *tmplCtx) OutputQuery(sourceName string) bool {
@@ -253,7 +253,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		StructName:                "Queries",
 		InterfaceName:             "Querier",
 		EmitTracing:               options.EmitTracing,
-		GoGenerate:                options.GoGenerate,
+		GoGenerateMock:            options.GoGenerateMock,
 	}
 
 	if tctx.UsesCopyFrom && !tctx.SQLDriver.IsPGX() && options.SqlDriver != opts.SQLDriverGoSQLDriverMySQL {

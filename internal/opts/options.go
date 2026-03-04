@@ -47,7 +47,7 @@ type Options struct {
 	EmitPerFileQueries          bool              `json:"emit_per_file_queries,omitempty" yaml:"emit_per_file_queries"`
 	EmitErrNilIfNoRows          bool              `json:"emit_err_nil_if_no_rows,omitempty" yaml:"emit_err_nil_if_no_rows"`
 	EmitTracing                 *TracingOptions   `json:"emit_tracing,omitempty" yaml:"emit_tracing"`
-	GoGenerate                  string            `json:"go_generate,omitempty" yaml:"go_generate"`
+	GoGenerateMock              string            `json:"go_generate_mock,omitempty" yaml:"go_generate_mock"`
 
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
 }
