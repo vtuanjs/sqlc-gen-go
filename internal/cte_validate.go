@@ -475,50 +475,97 @@ func checkTextReferences(text string, queryName string, cteMap map[string]*cteDe
 var (
 	// Matches FROM table or JOIN table at depth 0 within a clause
 	fromTableRe = regexp.MustCompile(`(?i)\b(?:FROM|JOIN)\s+(\w+)`)
-	// Matches unqualified identifiers in WHERE/ON/HAVING conditions
-	unqualifiedRefRe = regexp.MustCompile(`(?i)\b([a-z_]\w*)\b`)
+
+	// operandRefRe extracts identifiers that appear in comparison operand positions.
+	// Each alternative captures into a distinct group; extractOperandRefs collects
+	// the non-empty group from each match.
+	//
+	// Using operand position instead of "all identifiers minus a keyword blocklist"
+	// means SQL keywords (ESCAPE, NULLS, FILTER, …) are never extracted in the
+	// first place — they don't sit next to comparison operators — so no blocklist
+	// is needed and the approach is stable as SQL dialects evolve.
+	operandRefRe = regexp.MustCompile(
+		`(?i)` +
+			// Group 1: identifier on the left of a comparison operator
+			`\b([a-z_]\w*)\s*(?:=|!=|<>|<=|>=|<|>)` +
+			`|` +
+			// Group 2: identifier on the right of a comparison operator
+			`(?:=|!=|<>|<=|>=|<|>)\s*([a-z_]\w*)\b` +
+			`|` +
+			// Group 3: identifier before LIKE / ILIKE / IS / IN / BETWEEN
+			`\b([a-z_]\w*)\s+(?:like|ilike|is|in|between)\b` +
+			`|` +
+			// Group 4: identifier after NOT (boolean column negation: NOT col).
+			// NOT LIKE / NOT IN / NOT BETWEEN / NOT ILIKE / NOT EXISTS also match here,
+			// but the captured keywords are filtered out via valueKeywords below.
+			`\bnot\s+([a-z_]\w*)\b`,
+	)
 )
 
-// sqlKeywords is used to skip SQL keywords when checking unqualified column references
-var sqlKeywords = map[string]struct{}{
-	"select": {}, "from": {}, "where": {}, "and": {}, "or": {}, "not": {},
-	"in": {}, "is": {}, "null": {}, "true": {}, "false": {}, "between": {},
-	"like": {}, "ilike": {}, "as": {}, "on": {}, "join": {}, "inner": {},
-	"left": {}, "right": {}, "outer": {}, "cross": {}, "full": {}, "natural": {},
-	"order": {}, "by": {}, "group": {}, "having": {}, "limit": {}, "offset": {},
-	"union": {}, "intersect": {}, "except": {}, "all": {}, "distinct": {},
-	"case": {}, "when": {}, "then": {}, "else": {}, "end": {}, "exists": {},
-	"any": {}, "some": {}, "asc": {}, "desc": {}, "nulls": {}, "first": {},
-	"last": {}, "set": {}, "update": {}, "delete": {}, "insert": {}, "into": {},
-	"values": {}, "returning": {}, "conflict": {}, "do": {}, "nothing": {},
-	"using": {}, "with": {}, "recursive": {}, "excluded": {},
-	"count": {}, "sum": {}, "avg": {}, "min": {}, "max": {}, "coalesce": {},
-	"now": {}, "current_timestamp": {}, "current_date": {}, "interval": {},
-	"date_trunc": {}, "round": {}, "row_number": {}, "rank": {}, "dense_rank": {},
-	"lag": {}, "lead": {}, "over": {}, "partition": {}, "ntile": {},
-	"percent_rank": {}, "filter": {},
-	"cast": {}, "extract": {}, "trim": {}, "upper": {}, "lower": {},
-	"concat": {}, "length": {}, "substring": {}, "replace": {}, "position": {},
-	"array_agg": {}, "string_agg": {}, "json_agg": {}, "jsonb_agg": {},
-	"array": {}, "unnest": {}, "generate_series": {},
-	"int": {}, "integer": {}, "bigint": {}, "smallint": {}, "text": {},
-	"varchar": {}, "boolean": {}, "numeric": {}, "decimal": {}, "float": {},
-	"double": {}, "date": {}, "timestamp": {}, "timestamptz": {},
-	"primary": {}, "key": {}, "references": {}, "default": {}, "check": {},
-	"unique": {}, "index": {}, "constraint": {}, "foreign": {},
-	"create": {}, "alter": {}, "drop": {}, "table": {}, "column": {},
-	"add": {}, "type": {}, "if": {}, "not_null": {},
-	"begin": {}, "commit": {}, "rollback": {}, "transaction": {},
-	"for": {}, "each": {}, "row": {}, "trigger": {}, "function": {},
-	"returns": {}, "language": {}, "plpgsql": {}, "declare": {},
-	"raise": {}, "notice": {}, "exception": {}, "perform": {},
-	"new": {}, "old": {}, "tg_op": {},
-	"year": {}, "month": {}, "day": {}, "hour": {}, "minute": {}, "second": {},
+// valueKeywords are non-column identifiers that can appear in operand positions
+// (adjacent to comparison operators, or captured by the NOT rule). The list is
+// kept minimal: only values/functions that truly cannot be column names, plus the
+// small set that operators like AT TIME ZONE or COLLATE inject into operand slots.
+var valueKeywords = map[string]struct{}{
+	// SQL boolean/null literals
+	"null": {}, "true": {}, "false": {}, "unknown": {},
+	// Logical operators that can land adjacent to a comparison operator after
+	// qualified refs are stripped (e.g. "col > X AND col < Y" → "… AND  < Y").
+	"and": {}, "or": {},
+	// SQL keywords captured by G3/G4 when NOT precedes them:
+	// "NOT LIKE", "NOT ILIKE", "NOT IN", "NOT BETWEEN", "NOT EXISTS", "NOT IS"
+	// — G3 captures "not" (identifier before like/ilike/is/in/between),
+	//   G4 captures the keyword after NOT.
+	"not": {}, "like": {}, "ilike": {}, "in": {}, "between": {}, "exists": {}, "is": {},
+	// COLLATE appears on the right of = in "col = 'x' COLLATE …"
+	"collate": {},
+	// AT TIME ZONE pushes "zone" into the left-of-operator position
+	"zone": {},
+	// Zero-argument datetime functions used as comparison values (no parentheses in SQL)
+	"current_date": {}, "current_timestamp": {}, "current_time": {},
+	"localtime": {}, "localtimestamp": {},
+	"current_user": {}, "session_user": {}, "current_catalog": {}, "current_schema": {},
+	// CASE expression keywords: "END = x" puts "end" (and "when" once the qualified
+	// ref before it is stripped) into an operand slot.
+	"case": {}, "when": {}, "then": {}, "else": {}, "end": {},
+	// Type names in typed-literal syntax "TYPE 'string'": after the string literal
+	// is stripped, the type name sits next to the comparison operator
+	// (e.g. "col = timestamp '…'" → "col =  timestamp").
+	"timestamp": {}, "timestamptz": {}, "date": {}, "time": {}, "interval": {},
+	"numeric": {}, "decimal": {}, "boolean": {}, "bool": {},
+	"int": {}, "integer": {}, "bigint": {}, "smallint": {},
+	"real": {}, "double": {}, "char": {}, "varchar": {}, "text": {},
+	"bytea": {}, "uuid": {}, "json": {}, "jsonb": {},
+}
+
+// listClauseKeywords are the only non-column identifiers that appear in
+// ORDER BY / GROUP BY clause bodies.
+var listClauseKeywords = map[string]struct{}{
+	"asc": {}, "desc": {}, "nulls": {}, "first": {}, "last": {},
+	"null": {}, "true": {}, "false": {},
+	// COLLATE and USING appear in "ORDER BY col COLLATE …" / "ORDER BY col USING <"
+	"collate": {}, "using": {},
+	// CASE expression keywords: "ORDER BY CASE WHEN … THEN … ELSE … END"
+	"case": {}, "when": {}, "then": {}, "else": {}, "end": {},
+}
+
+var listRefRe = regexp.MustCompile(`(?i)\b([a-z_]\w*)\b`)
+
+func extractListRefs(cond string) []string {
+	var refs []string
+	for _, ref := range listRefRe.FindAllString(cond, -1) {
+		if _, skip := listClauseKeywords[strings.ToLower(ref)]; !skip {
+			refs = append(refs, ref)
+		}
+	}
+	return refs
 }
 
 var (
 	// stringLiteralRe matches single-quoted string literals.
 	stringLiteralRe = regexp.MustCompile(`'[^']*'`)
+	// doubleQuotedRe matches double-quoted identifiers (e.g. COLLATE "en-US").
+	doubleQuotedRe = regexp.MustCompile(`"[^"]*"`)
 	// castTypeRe matches a "::type" cast, including schema-qualified and array types
 	// (e.g. ::int, ::order_status, ::pg_catalog.int4, ::text[]).
 	castTypeRe = regexp.MustCompile(`(?i)::\s*"?[\w.]+"?(?:\s*\[\s*\])*`)
@@ -534,6 +581,7 @@ var (
 func stripNonColumnTokens(cond string) string {
 	cond = stripSubqueries(cond)
 	cond = stringLiteralRe.ReplaceAllString(cond, "")
+	cond = doubleQuotedRe.ReplaceAllString(cond, "")
 	cond = castTypeRe.ReplaceAllString(cond, "")
 	cond = qualifiedRefRe.ReplaceAllString(cond, "")
 	cond = funcCallRe.ReplaceAllString(cond, "")
@@ -622,44 +670,63 @@ func checkScopeUnqualifiedRefs(scopeLower string, queryName string, sources map[
 		allCols[out] = struct{}{}
 	}
 
-	// Extract the WHERE/ON/HAVING/GROUP BY/ORDER BY condition part
-	condText := extractConditionClauses(scopeLower)
-	if condText == "" {
-		return nil
-	}
-
-	// Strip everything that contains identifiers which are NOT column
-	// references, so they aren't mistaken for unknown columns.
-	condClean := stripNonColumnTokens(condText)
-
-	// Check unqualified identifiers
-	refs := unqualifiedRefRe.FindAllString(condClean, -1)
-	for _, ref := range refs {
+	checkRef := func(ref string) error {
 		refLower := strings.ToLower(ref)
-
-		if _, isKeyword := sqlKeywords[refLower]; isKeyword {
-			continue
-		}
-
-		// Skip numbers, parameters ($1, @param)
-		if len(ref) > 0 && (ref[0] >= '0' && ref[0] <= '9') {
-			continue
-		}
-
-		// Skip if it's a known table/alias name
 		if _, isSource := sources[refLower]; isSource {
-			continue
+			return nil
 		}
-
-		// Check if this identifier exists in any table in scope
 		if _, found := allCols[refLower]; !found {
 			return fmt.Errorf(
 				"query %q: column %q not found in any table in scope (%s)",
 				queryName, ref, strings.Join(scopeTableNames, ", "),
 			)
 		}
+		return nil
 	}
+
+	// WHERE/ON/HAVING: only extract identifiers in comparison operand positions.
+	// This avoids needing a keyword blocklist — SQL keywords (ESCAPE, NULLS, …)
+	// don't appear next to comparison operators.
+	condText := extractConditionClauses(scopeLower)
+	if condText != "" {
+		condClean := stripNonColumnTokens(condText)
+		for _, ref := range extractOperandRefs(condClean) {
+			if _, isValue := valueKeywords[strings.ToLower(ref)]; isValue {
+				continue
+			}
+			if err := checkRef(ref); err != nil {
+				return err
+			}
+		}
+	}
+
+	// ORDER BY / GROUP BY: bare identifiers here are directly column references,
+	// so use simple identifier extraction with a tiny exclusion list.
+	listText := extractListClauses(scopeLower)
+	if listText != "" {
+		listClean := stripNonColumnTokens(listText)
+		for _, ref := range extractListRefs(listClean) {
+			if err := checkRef(ref); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
+}
+
+// extractOperandRefs returns all identifiers captured by operandRefRe from cond.
+func extractOperandRefs(cond string) []string {
+	matches := operandRefRe.FindAllStringSubmatch(cond, -1)
+	var refs []string
+	for _, m := range matches {
+		for _, g := range m[1:] {
+			if g != "" {
+				refs = append(refs, g)
+			}
+		}
+	}
+	return refs
 }
 
 func findMatchingParen(text string, openIdx int) int {
@@ -723,15 +790,31 @@ func extractScopeTables(subqueryLower string, sources map[string]*columnSource, 
 	return result
 }
 
-var conditionRe = regexp.MustCompile(`(?i)\b(?:WHERE|ON|HAVING|ORDER\s+BY|GROUP\s+BY)\b`)
+var (
+	// comparisonClauseRe matches WHERE/ON/HAVING — clauses where column references
+	// appear as operands of comparison operators.
+	comparisonClauseRe = regexp.MustCompile(`(?i)\b(?:WHERE|ON|HAVING)\b`)
+	// listClauseRe matches ORDER BY / GROUP BY — clauses where bare identifiers
+	// are directly column references (not operands of comparisons).
+	listClauseRe = regexp.MustCompile(`(?i)\b(?:ORDER\s+BY|GROUP\s+BY)\b`)
+)
 
+// extractConditionClauses returns the bodies of WHERE/ON/HAVING clauses joined.
 func extractConditionClauses(subqueryLower string) string {
-	// Find WHERE/ON/HAVING/ORDER BY/GROUP BY clauses at depth 0.
+	return extractClauseBodies(subqueryLower, comparisonClauseRe)
+}
+
+// extractListClauses returns the bodies of ORDER BY / GROUP BY clauses joined.
+func extractListClauses(subqueryLower string) string {
+	return extractClauseBodies(subqueryLower, listClauseRe)
+}
+
+func extractClauseBodies(subqueryLower string, re *regexp.Regexp) string {
 	depths := parenDepths(subqueryLower)
 	clauseEnds := clauseEndRe.FindAllStringIndex(subqueryLower, -1)
 
 	var parts []string
-	for _, cm := range conditionRe.FindAllStringIndex(subqueryLower, -1) {
+	for _, cm := range re.FindAllStringIndex(subqueryLower, -1) {
 		if depths[cm[0]] != 0 {
 			continue
 		}

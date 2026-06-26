@@ -36,6 +36,110 @@ func TestValidateQueryCTEs_NoFalsePositives(t *testing.T) {
 			)
 			SELECT x.id FROM x`,
 		},
+		{
+			name: "ILIKE with ESCAPE clause",
+			sql: `WITH x AS (
+				SELECT id, name FROM users u
+				WHERE u.name ILIKE CONCAT('%', REPLACE(@q::text, '%', '\%'), '%') ESCAPE '\'
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "NOT LIKE / NOT ILIKE do not flag LIKE or ILIKE as a column",
+			sql: `WITH x AS (
+				SELECT id, name FROM users u
+				WHERE u.name NOT LIKE '%foo%' AND u.email NOT ILIKE '%bar%'
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "NOT BETWEEN does not flag BETWEEN as a column",
+			sql: `WITH x AS (
+				SELECT id, user_id FROM orders o
+				WHERE o.amount NOT BETWEEN 1 AND 100
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "CURRENT_DATE and CURRENT_TIMESTAMP as comparison values",
+			sql: `WITH x AS (
+				SELECT id, user_id FROM orders o
+				WHERE o.created_at > CURRENT_DATE AND o.created_at < CURRENT_TIMESTAMP
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "AT TIME ZONE does not flag zone as a column",
+			sql: `WITH x AS (
+				SELECT id, user_id FROM orders o
+				WHERE o.created_at AT TIME ZONE 'UTC' > CURRENT_TIMESTAMP
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "COLLATE in WHERE does not flag collate as a column",
+			sql: `WITH x AS (
+				SELECT id, name FROM users u
+				WHERE u.name = 'foo' COLLATE "en-US"
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "COLLATE in ORDER BY does not flag collate as a column",
+			sql: `WITH x AS (
+				SELECT id, name FROM users u
+				ORDER BY u.name COLLATE "en-US" ASC
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "USING in ORDER BY does not flag using as a column",
+			sql: `WITH x AS (
+				SELECT id, name FROM users u
+				ORDER BY u.name USING <
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "CASE expression in WHERE does not flag case keywords as columns",
+			sql: `WITH x AS (
+				SELECT id, status FROM orders o
+				WHERE CASE WHEN o.status = 'a' THEN 1 ELSE 2 END = 1
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "CASE expression in ORDER BY does not flag case keywords as columns",
+			sql: `WITH x AS (
+				SELECT id, status FROM orders o
+				ORDER BY CASE WHEN o.status = 'a' THEN 1 ELSE 2 END
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "typed literal DATE on right of operator does not flag the type name",
+			sql: `WITH x AS (
+				SELECT id, created_at FROM orders o
+				WHERE o.created_at > DATE '2020-01-01'
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "typed literal TIMESTAMP on right of operator does not flag the type name",
+			sql: `WITH x AS (
+				SELECT id, created_at FROM orders o
+				WHERE o.created_at = TIMESTAMP '2020-01-01 00:00:00'
+			)
+			SELECT x.id FROM x`,
+		},
+		{
+			name: "typed literal INTERVAL on right of operator does not flag the type name",
+			sql: `WITH x AS (
+				SELECT id, created_at FROM orders o
+				WHERE o.created_at = INTERVAL '1 day'
+			)
+			SELECT x.id FROM x`,
+		},
 	}
 
 	for _, tt := range tests {
