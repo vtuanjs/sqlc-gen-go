@@ -485,3 +485,15 @@ Results on Intel Core i7-11800H @ 2.30GHz.
 - **For the all-optional large query, PreCompiled is 2.3× faster than manual** — `Build` writes pre-split string literals directly vs `fmt.Fprintf` per condition.
 - **Allocations drop from 46–126 down to 3–10**, matching or beating manual.
 - A typical DB round-trip is ~1 ms; PreCompiled overhead is ~150–800 ns — effectively free in practice.
+
+## Contributors
+
+GitHub hides the Contributors graph on forked repositories, so the list is rendered here instead.
+
+<a href="https://github.com/vtuanjs/sqlc-gen-go/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=vtuanjs/sqlc-gen-go" alt="Contributors" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
+This project is a fork of [sqlc-dev/sqlc-gen-go](https://github.com/sqlc-dev/sqlc-gen-go) — thanks to the upstream [sqlc](https://github.com/sqlc-dev/sqlc) maintainers and contributors whose work this builds on.
