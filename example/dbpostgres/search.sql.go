@@ -302,6 +302,50 @@ func (q *SearchQueries) SearchUsersWithBlock(ctx context.Context, db DBTX, arg S
 	return items, nil
 }
 
+const SearchUsersWithPhone = `-- name: SearchUsersWithPhone :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE name = $1
+  AND phone IS NOT NULL -- :if $2
+ORDER BY id ASC
+`
+
+var _searchUsersWithPhoneDynQ = dynCompile(SearchUsersWithPhone)
+
+type SearchUsersWithPhoneParams struct {
+	Name      string
+	WithPhone bool
+}
+
+// A flag-only parameter: with_phone gates a clause that binds no value.
+func (q *SearchQueries) SearchUsersWithPhone(ctx context.Context, db DBTX, arg SearchUsersWithPhoneParams) ([]User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersWithPhone")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchUsersWithPhoneDynQ.Build([]any{arg.Name, arg.WithPhone})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const SearchUsersWithSameNameAndEmail = `-- name: SearchUsersWithSameNameAndEmail :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -401,6 +445,8 @@ type SearchQuerier interface {
 	SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]User, error)
 	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]User, error)
 	SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]User, error)
+	// A flag-only parameter: with_phone gates a clause that binds no value.
+	SearchUsersWithPhone(ctx context.Context, db DBTX, arg SearchUsersWithPhoneParams) ([]User, error)
 	SearchUsersWithSameNameAndEmail(ctx context.Context, db DBTX, arg SearchUsersWithSameNameAndEmailParams) ([]User, error)
 	SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]User, error)
 }

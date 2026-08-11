@@ -61,6 +61,7 @@ func Migrate(ctx context.Context, c *pgx.Conn, schemaPath string) error {
 		DROP TABLE IF EXISTS orders;
 		DROP TABLE IF EXISTS products;
 		DROP TABLE IF EXISTS users;
+		DROP TABLE IF EXISTS filter_items;
 	`
 	if _, err := c.Exec(ctx, drop); err != nil {
 		return fmt.Errorf("drop tables: %w", err)
@@ -112,5 +113,33 @@ func InsertOrder(t testing.TB, conn *pgx.Conn, userID int64, createdAt time.Time
 	})
 }
 
+// InsertFilterItem inserts a filter_items row and registers cleanup.
+func InsertFilterItem(t testing.TB, conn *pgx.Conn, kind, a, b, c string) int64 {
+	t.Helper()
+	ctx := context.Background()
+	var id int64
+	err := conn.QueryRow(ctx,
+		`INSERT INTO filter_items (kind, a, b, c) VALUES ($1, $2, $3, $4) RETURNING id`,
+		kind, a, b, c,
+	).Scan(&id)
+	if err != nil {
+		t.Fatalf("InsertFilterItem: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Exec(context.Background(), `DELETE FROM filter_items WHERE id = $1`, id)
+	})
+	return id
+}
+
 func StrPtr(v string) *string { return &v }
 func BoolPtr(v bool) *bool    { return &v }
+func I32Ptr(v int32) *int32   { return &v }
+
+// IDSet collects user IDs for order-independent membership assertions.
+func IDSet(users []dbpostgres.User) map[int64]bool {
+	ids := make(map[int64]bool, len(users))
+	for _, u := range users {
+		ids[u.ID] = true
+	}
+	return ids
+}

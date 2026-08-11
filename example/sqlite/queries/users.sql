@@ -1,21 +1,21 @@
 -- name: GetUser :one
-SELECT * FROM users WHERE id = $1 LIMIT 1;
+SELECT * FROM users WHERE id = ? LIMIT 1;
 
 -- name: ListUsers :many
-SELECT * FROM users WHERE name = ANY(@names::text[]) ORDER BY name;
+SELECT * FROM users WHERE name IN (sqlc.slice(names)) ORDER BY name;
 
 -- name: CreateUser :one
 INSERT INTO users (name, email, phone)
-VALUES ($1, $2, $3)
+VALUES (?, ?, ?)
 RETURNING *;
 
 -- name: DeleteUser :exec
-DELETE FROM users WHERE id = $1;
+DELETE FROM users WHERE id = ?;
 
 -- name: UpdateUser :one
 UPDATE users
-SET name = $1, email = $2
-WHERE id = $3
+SET name = ?, email = ?
+WHERE id = ?
 RETURNING *;
 
 -- name: CountUsers :one

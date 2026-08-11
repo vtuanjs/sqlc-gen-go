@@ -20,21 +20,38 @@ func NewUsersQueries() *UsersQueries {
 type UsersQueries struct {
 }
 
+const CountUsers = `-- name: CountUsers :one
+SELECT COUNT(*) FROM users
+`
+
+func (q *UsersQueries) CountUsers(ctx context.Context, db DBTX) (int64, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.CountUsers")
+	defer tracer.End()
+	row := db.QueryRow(ctx, CountUsers)
+	var count int64
+	err := row.Scan(&count)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return count, nil
+	}
+	return count, err
+}
+
 const CreateUser = `-- name: CreateUser :one
-INSERT INTO users (name, email)
-VALUES ($1, $2)
+INSERT INTO users (name, email, phone)
+VALUES ($1, $2, $3)
 RETURNING id, name, email, created_at, phone
 `
 
 type CreateUserParams struct {
 	Name  string
 	Email string
+	Phone *string
 }
 
 func (q *UsersQueries) CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.CreateUser")
 	defer tracer.End()
-	row := db.QueryRow(ctx, CreateUser, arg.Name, arg.Email)
+	row := db.QueryRow(ctx, CreateUser, arg.Name, arg.Email, arg.Phone)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -152,6 +169,7 @@ func (q *UsersQueries) UpdateUser(ctx context.Context, db DBTX, arg UpdateUserPa
 }
 
 type UsersQuerier interface {
+	CountUsers(ctx context.Context, db DBTX) (int64, error)
 	CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error)
 	DeleteUser(ctx context.Context, db DBTX, arg DeleteUserParams) error
 	GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error)

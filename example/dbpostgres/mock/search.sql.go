@@ -131,6 +131,21 @@ func (mr *MockSearchQuerierMockRecorder) SearchUsersWithBlock(ctx, db, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersWithBlock", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersWithBlock), ctx, db, arg)
 }
 
+// SearchUsersWithPhone mocks base method.
+func (m *MockSearchQuerier) SearchUsersWithPhone(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchUsersWithPhoneParams) ([]dbpostgres.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchUsersWithPhone", ctx, db, arg)
+	ret0, _ := ret[0].([]dbpostgres.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchUsersWithPhone indicates an expected call of SearchUsersWithPhone.
+func (mr *MockSearchQuerierMockRecorder) SearchUsersWithPhone(ctx, db, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersWithPhone", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersWithPhone), ctx, db, arg)
+}
+
 // SearchUsersWithSameNameAndEmail mocks base method.
 func (m *MockSearchQuerier) SearchUsersWithSameNameAndEmail(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchUsersWithSameNameAndEmailParams) ([]dbpostgres.User, error) {
 	m.ctrl.T.Helper()

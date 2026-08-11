@@ -110,7 +110,7 @@ sql:
           disable_result_slice_pointers: true
 
   - schema: sqlite/schema.sql
-    queries: sqlite/queries.sql
+    queries: sqlite/queries/
     engine: sqlite
     codegen:
       - out: dbsqlite
@@ -121,7 +121,7 @@ sql:
           emit_dynamic_filter: true
 
   - schema: mysql/schema.sql
-    queries: mysql/queries.sql
+    queries: mysql/queries/
     engine: mysql
     codegen:
       - out: dbmysql

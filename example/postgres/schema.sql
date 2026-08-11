@@ -1,3 +1,13 @@
+CREATE TABLE filter_items (
+    id   BIGSERIAL PRIMARY KEY,
+    kind TEXT NOT NULL,
+    a    TEXT NOT NULL,
+    b    TEXT NOT NULL,
+    c    TEXT NOT NULL
+);
+
+CREATE INDEX filter_items_a_c_idx ON filter_items (a, c);
+
 CREATE TABLE users (
     id   BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL,

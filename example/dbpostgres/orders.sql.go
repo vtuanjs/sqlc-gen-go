@@ -140,7 +140,7 @@ func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListO
 	return items, nil
 }
 
-const UpdateOrderStatus = `-- name: UpdateOrderStatus :exec
+const UpdateOrderStatus = `-- name: UpdateOrderStatus :execrows
 UPDATE orders SET status = $2 WHERE id = $1
 `
 
@@ -149,11 +149,14 @@ type UpdateOrderStatusParams struct {
 	Status string
 }
 
-func (q *OrdersQueries) UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) error {
+func (q *OrdersQueries) UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) (int64, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.UpdateOrderStatus")
 	defer tracer.End()
-	_, err := db.Exec(ctx, UpdateOrderStatus, arg.ID, arg.Status)
-	return err
+	result, err := db.Exec(ctx, UpdateOrderStatus, arg.ID, arg.Status)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 type OrdersQuerier interface {
@@ -161,7 +164,7 @@ type OrdersQuerier interface {
 	GetOrder(ctx context.Context, db DBTX, arg GetOrderParams) (*Order, error)
 	GetUserOrderSummary(ctx context.Context, db DBTX, arg GetUserOrderSummaryParams) (*GetUserOrderSummaryRow, error)
 	ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]Order, error)
-	UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) error
+	UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) (int64, error)
 }
 
 var _ OrdersQuerier = (*OrdersQueries)(nil)

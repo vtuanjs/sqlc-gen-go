@@ -9,7 +9,7 @@ INSERT INTO orders (user_id, amount, status)
 VALUES ($1, $2, $3)
 RETURNING *;
 
--- name: UpdateOrderStatus :exec
+-- name: UpdateOrderStatus :execrows
 UPDATE orders SET status = $2 WHERE id = $1;
 
 -- name: GetUserOrderSummary :one

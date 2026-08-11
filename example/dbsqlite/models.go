@@ -4,9 +4,39 @@
 
 package dbsqlite
 
+import (
+	"database/sql"
+	"time"
+)
+
 type FilterItem struct {
-	ID int64
-	A  string
-	B  string
-	C  string
+	ID   int64
+	Kind string
+	A    string
+	B    string
+	C    string
+}
+
+type Order struct {
+	ID        int64
+	UserID    int64
+	Amount    float64
+	Status    string
+	CreatedAt time.Time
+}
+
+type Product struct {
+	ID        int64
+	Name      sql.NullString
+	Price     float64
+	Stock     sql.NullInt64
+	CreatedAt time.Time
+}
+
+type User struct {
+	ID        int64
+	Name      string
+	Email     string
+	CreatedAt time.Time
+	Phone     sql.NullString
 }

@@ -156,17 +156,34 @@ When a parameter is marked with `:if`, the generated code:
 - Adds a `bool` field for flag-only parameters (e.g. ORDER BY toggles that appear only in `:if` annotations, not as `col = $N` predicate values)
 - Calls the generated `DynamicSQL()` helper at runtime to strip inactive lines and renumber placeholders
 
-A `:if`-gated parameter is *inactive* (clause skipped) when it is a nil pointer, a `false` bool, or a **nil** slice. An empty non-nil slice keeps the clause and renders `NULL` (matching zero rows): nil means "no filter requested", empty means "filter by the empty set" — the fail-closed default for computed lists such as permission scopes. When empty should mean "don't filter", wrap the argument in the generated `NilableSlice` helper, which converts empty to nil:
-
-```go
-users, err := q.SearchUsersByIDs(ctx, db, db.SearchUsersByIDsParams{
-    Ids: db.NilableSlice(ids), // empty → nil → clause skipped
-})
-```
+A `:if`-gated parameter is *inactive* (clause skipped) when it is a nil pointer, a `false` bool, or a **nil** slice. An empty non-nil slice keeps the clause and renders `NULL` (matching zero rows): nil means "no filter requested", empty means "filter by the empty set" — the fail-closed default for computed lists such as permission scopes.
 
 ```yaml
 options:
   emit_dynamic_filter: true
+```
+
+**Call-site helpers**
+
+Filter values usually arrive as plain values from a request or form, where "empty" means "the user did not fill this in". These generic helpers, emitted into `dynfilter.go`, convert them at the call site — all are compile-time-only wrappers with no effect on query building:
+
+| Helper | Use when |
+|---|---|
+| `Nilable(v)` | Zero value means "don't filter" — `""`, `0`, `false`, the zero `time.Time` become `nil`. Works for any comparable type. |
+| `NilableSlice(s)` | Empty slice means "don't filter" rather than "filter by the empty set" |
+| `NilableIf(v, keep)` | Something *other than* the value decides whether to filter, so a zero value can stay active |
+| `Ptr(v)` | Always filter, even on a zero value (match the empty string, or `stock = 0`) |
+
+```go
+users, err := q.SearchUsers(ctx, db, db.SearchUsersParams{
+    Name:  form.Name,
+    Email: db.Nilable(form.Email),                       // "" → nil → clause skipped
+    Stock: db.NilableIf(form.MinStock, form.ByStock),    // 0 stays an active filter
+})
+
+items, err := q.SearchUsersByIDs(ctx, db, db.SearchUsersByIDsParams{
+    Ids: db.NilableSlice(ids), // empty → nil → clause skipped
+})
 ```
 
 **Engine support** — PostgreSQL, SQLite, and MySQL. The emitted `dynfilter.go` runtime is keyed to the configured `engine`:
@@ -218,7 +235,35 @@ ORDER BY
 
 This one mixes both styles: `-- :if @email` and `-- :if @id_asc` are inline (trailing the line they gate), while `-- :if @id_desc` is top-level (gating the `id DESC,` line below it). The two styles can be combined freely in the same query.
 
-Note: We use TRUE to prevent SQL errors when a line is omitted.
+**Use `TRUE` sentinels to keep the query valid**
+
+Removing a line can leave syntax that no longer parses: a leading `AND`, a dangling comma, or a clause keyword with nothing under it. Write every removable line so it is *independently* droppable, by anchoring the clause with a static entry:
+
+- `WHERE TRUE` first, so every condition line can begin with `AND` — otherwise dropping the first condition leaves `WHERE AND b = …`
+- a trailing `TRUE` in `ORDER BY`, so every entry can end with `,` — otherwise dropping the last entry leaves `ORDER BY id ASC,`
+
+`1 = 1` works equally well if you prefer it. The same rule applies to any comma-separated list: a removable `SELECT` column must not be the first or last entry.
+
+`Build` does repair two cases on its own, but **only on the query's last line** — it deliberately does not rescan the whole query on every call, which would put per-line work on the hot path of every request:
+
+| Leftover on the last line | Repair |
+|---|---|
+| Line ends in `,` | The dangling comma is stripped |
+| Line is only a clause keyword (`WHERE`, `ORDER BY`, `GROUP BY`, `HAVING`) | The keyword line is removed, cascading upward |
+
+So a fully conditional `ORDER BY` at the very end of a query cleans itself up, but the same clause followed by `LIMIT 10`, `FOR UPDATE`, or a closing `)` does not — those need the sentinel:
+
+```sql
+SELECT * FROM t
+WHERE a = @a
+ORDER BY
+  id ASC,  -- :if @id_asc
+  id DESC, -- :if @id_desc
+  TRUE
+LIMIT 10
+```
+
+**Engine caveat** — sqlc's SQLite parser discards a `-- :if` comment that sits on a statement's last line, so on SQLite an annotation must never be the final token before the `;`. A trailing `TRUE` sentinel satisfies this too. sqlc's MySQL parser has no `@name` syntax at all: bind values with `sqlc.arg()`/`sqlc.slice()`, while the `-- :if @name` annotation still refers to parameters by name.
 
 **Generated Go**
 
@@ -331,11 +376,11 @@ cd example
 go test ./test/... -v
 ```
 
-**82 passing test cases** across:
+**99 passing test cases** across:
 
 | Test | Sub-tests | What is covered |
 |---|---|---|
-| `TestDynamicSQL` | 30 | Placeholder remapping, gap handling, ORDER BY clauses, orphaned WHERE/GROUP BY/HAVING cleanup, EXISTS blocks, empty-slice gating, `NilableSlice` |
+| `TestDynamicSQL` | 36 | Placeholder remapping, gap handling, ORDER BY clauses, last-line cleanup of orphaned WHERE/GROUP BY/HAVING, `TRUE`-sentinel clauses followed by `LIMIT`, EXISTS blocks, empty-slice gating, `NilableSlice` |
 | `TestDynamicSQL_LexicalContext` | 16 | Markers inside string literals (incl. dollar-quoted, `E'…'`, backslash-escaped, multi-line), quoted identifiers, nested comments |
 | `TestDynamicSQLSlices` | 7 | `sqlc.slice()` expansion, repeated and empty slices, slice-marker edge cases across all three engines |
 | `TestSearchUsers` | 9 | Optional email/phone/date filter combinations on generated search query |
@@ -344,6 +389,9 @@ go test ./test/... -v
 | `TestSearchUsersWithSameNameAndEmail` | 2 | Nil vs non-nil shared-column filter |
 | `TestSearchUsersWithBlock` | 2 | EXISTS block conditional inclusion |
 | `TestSearchUsersWithTopStyle` | 2 | Top-level `:if` annotation style |
+| `TestNilable` | 7 | `Nilable` over text, numbers, bools, `time.Time`; zero → nil, copy semantics |
+| `TestNilableIf` | 2 | `NilableIf` keeping a zero value as an active filter |
+| `TestPtr` | 2 | `Ptr` on zero values and non-comparable types |
 | `TestSearchUsersOrderedByID` | 4 | ASC/DESC flag combinations with optional filters |
 | `TestGetUserWithLock` | 2 | `FOR UPDATE` / `FOR SHARE` SQL generation |
 
@@ -358,26 +406,35 @@ make example-e2e-mysql
 make example-e2e-sqlite     # in-memory, no docker
 ```
 
+Each engine declares its own copy of the query set in `example/{postgres,mysql,sqlite}/queries/` — same query names, same schema, engine-idiomatic SQL — and the three suites run the **same list of tests**, so a behaviour difference between engines shows up as a failing test rather than as untested divergence. The only exception is marked `n/a`: SQLite has no `FOR UPDATE`.
+
+| Test | What is covered | pg | mysql | sqlite |
+|---|---|---|---|---|
+| `TestSearchUsers` | Optional email/phone/date filters against real rows | ✅ | ✅ | ✅ |
+| `TestSearchUsersOrdered` | ORDER BY flag combinations | ✅ | ✅ | ✅ |
+| `TestSearchUsersOrderedByID` | ASC/DESC flag combinations with optional filters | ✅ | ✅ | ✅ |
+| `TestSearchUsersByContact` | Multi-param optional filter | ✅ | ✅ | ✅ |
+| `TestSearchUsersByIDs` | `sqlc.slice()` gating: nil, populated, empty, `NilableSlice` | ✅ | ✅ | ✅ |
+| `TestSearchUsersWithSameNameAndEmail` | One parameter gating and filling two conditions | ✅ | ✅ | ✅ |
+| `TestSearchUsersWithBlock` | Gated paren block, inline and top-level annotation styles | ✅ | ✅ | ✅ |
+| `TestGetUserWithLock` | `FOR UPDATE` gated by a flag-only parameter | ✅ | ✅ | n/a |
+| `TestSearchUsersWithPhone` | Flag-only parameter gating a clause that binds no value | ✅ | ✅ | ✅ |
+| `TestDynamicFilter` | Optional filter between two required params (placeholder renumbering) + `sqlc.slice()` gating | ✅ | ✅ | ✅ |
+| `TestUserCRUD` | `RETURNING` / `:execlastid` inserts, IN-list, update, count, delete | ✅ | ✅ | ✅ |
+| `TestOrderQueries` | `:execrows` affected-row counts, LEFT JOIN aggregate row, ordering | ✅ | ✅ | ✅ |
+| `TestProductQueries` | Nullable-column round-trips, scalar-column selects, delete | ✅ | ✅ | ✅ |
+
 ### PostgreSQL end-to-end (`example/e2e-postgres/`)
 
-Integration tests that run queries against a real PostgreSQL database (`postgres://postgres:postgres@localhost:6432/sqlc-test`). Covers the same scenarios as the unit tests but validates actual query execution and result mapping.
-
-| Test | What is covered |
-|---|---|
-| `TestSearchUsers` | Optional email/phone/date filters against real rows |
-| `TestSearchUsersOrdered` | ORDER BY flag combinations |
-| `TestSearchUsersByContact` | Multi-param optional filter |
-| `TestSearchUsersWithSameNameAndEmail` | Nil vs non-nil shared-column filter |
-| `TestSearchUsersOrderedByID` | ASC/DESC flag combinations with optional filters |
-| `TestGetUserWithLock` | `FOR UPDATE` / `FOR SHARE` locking |
+66 sub-tests against a real PostgreSQL 16 (`postgres://postgres:postgres@localhost:6432/sqlc-test`) via `pgx/v5`, exercising the `emit_per_file_queries` + `emit_tracing` + pointer-result configuration. `emit_err_nil_if_no_rows` means a missing row is `(nil, nil)` rather than `pgx.ErrNoRows`, which the CRUD tests assert directly.
 
 ### MySQL end-to-end (`example/e2e-mysql/`)
 
-Runs the generated dynamic-filter query against a real MySQL 8 (`root:mysql@tcp(localhost:6603)/sqlc-test`), covering nil, populated, and empty `sqlc.slice()` values.
+65 sub-tests against a real MySQL 8 (`root:mysql@tcp(localhost:6603)/sqlc-test`) via `database/sql`. MySQL has no `RETURNING`, so inserts use `:execlastid`; nullable columns surface as `sql.NullString`/`sql.NullInt32` (this config does not set `emit_pointers_for_null_types`), and a `:if`-gated nullable column parameter is therefore a `*sql.NullString`.
 
 ### SQLite end-to-end (`example/e2e-sqlite/`)
 
-Runs SQLite dynamic filters through `database/sql` without Docker, including optional middle-argument removal and placeholder remapping.
+62 sub-tests through `database/sql` with no Docker — each test gets its own `:memory:` database. SQLite supports `RETURNING`, so inserts come back as full rows. It has no `FOR UPDATE`, so `TestGetUserWithLock` is the one test it cannot run; the flag-only-parameter case it covers is `TestSearchUsersWithPhone`, which runs on all three engines.
 
 ---
 

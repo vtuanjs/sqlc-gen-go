@@ -73,6 +73,9 @@ Output files generated:
 - Params annotated with `:if` become pointer types (`*T`); `nil` skips the condition
 - Flag-only params (not SQL params) are added as `bool` fields
 - `dynCompile()` and `DynamicSQL()` helpers emitted into `dynfilter.go`; generated queries use `dynCompile` (pre-compiled) by default
+- Call-site helpers in `dynfilter.go`: `Nilable(v)` (zero → nil), `NilableSlice(s)` (empty → nil), `NilableIf(v, keep)`, `Ptr(v)` — all compile-time only
+- After removing lines, `dynFinalizeQuery()` strips a dangling comma / orphaned clause keyword on the query's **last line only** — deliberately, to keep `Build` off a per-line rescan on every request. Queries anchor clauses with static `TRUE` sentinels instead (`WHERE TRUE`, trailing `TRUE` in `ORDER BY`); required whenever `LIMIT`/`FOR UPDATE`/`)` follows the conditional lines
+- Engine caveat: sqlc's **MySQL** parser has no `@name` syntax (use `sqlc.arg()`/`sqlc.slice()`; the `-- :if @name` annotation still refers to params by name), and its **SQLite** parser discards a `-- :if` comment sitting on a statement's last line, so an annotation must never be the final token before the `;`
 
 **`emit_tracing`** — injects custom tracing code into every query method via a Go template:
 ```yaml

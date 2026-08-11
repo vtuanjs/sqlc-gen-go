@@ -1,39 +1,25 @@
-package e2emysql
+package e2epostgres
 
 import (
 	"context"
 	"reflect"
 	"testing"
 
-	"example/dbmysql"
+	"example/dbpostgres"
+	setup "example/e2e-setup"
 )
 
 func TestDynamicFilter(t *testing.T) {
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	db := newDB(t)
-	q := dbmysql.New(db)
+	q := dbpostgres.NewFilterQueries()
 
-	insert := func(kind, a, b, c string) int64 {
-		t.Helper()
-		res, err := db.ExecContext(ctx,
-			"INSERT INTO filter_items (kind, a, b, c) VALUES (?, ?, ?, ?)", kind, a, b, c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
-	}
-	t.Cleanup(func() { db.Exec("DELETE FROM filter_items") })
-
-	insert("widget", "required-a", "first", "required-c")
-	id2 := insert("widget", "required-a", "second", "required-c")
-	insert("gadget", "required-a", "first", "other-c")
+	id1 := setup.InsertFilterItem(t, conn, "widget", "required-a", "first", "required-c")
+	id2 := setup.InsertFilterItem(t, conn, "widget", "required-a", "second", "required-c")
+	setup.InsertFilterItem(t, conn, "gadget", "required-a", "first", "other-c")
 
 	t.Run("ListFilterItems/OptionalMiddleArgOmitted", func(t *testing.T) {
-		items, err := q.ListFilterItems(ctx, dbmysql.ListFilterItemsParams{
+		items, err := q.ListFilterItems(ctx, conn, dbpostgres.ListFilterItemsParams{
 			A: "required-a",
 			C: "required-c",
 		})
@@ -47,9 +33,9 @@ func TestDynamicFilter(t *testing.T) {
 
 	t.Run("ListFilterItems/OptionalMiddleArgSupplied", func(t *testing.T) {
 		// b is dropped or kept between two required params, so @c is renumbered.
-		items, err := q.ListFilterItems(ctx, dbmysql.ListFilterItemsParams{
+		items, err := q.ListFilterItems(ctx, conn, dbpostgres.ListFilterItemsParams{
 			A: "required-a",
-			B: strPtr("first"),
+			B: setup.StrPtr("first"),
 			C: "required-c",
 		})
 		if err != nil {
@@ -61,7 +47,7 @@ func TestDynamicFilter(t *testing.T) {
 	})
 
 	t.Run("SearchFilterItems/NilIDs", func(t *testing.T) {
-		ids, err := q.SearchFilterItems(ctx, dbmysql.SearchFilterItemsParams{Kind: "widget"})
+		ids, err := q.SearchFilterItems(ctx, conn, dbpostgres.SearchFilterItemsParams{Kind: "widget"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +57,7 @@ func TestDynamicFilter(t *testing.T) {
 	})
 
 	t.Run("SearchFilterItems/SpecificIDs", func(t *testing.T) {
-		ids, err := q.SearchFilterItems(ctx, dbmysql.SearchFilterItemsParams{
+		ids, err := q.SearchFilterItems(ctx, conn, dbpostgres.SearchFilterItemsParams{
 			Kind: "widget",
 			Ids:  []int64{id2, id2 + 1000},
 		})
@@ -84,8 +70,7 @@ func TestDynamicFilter(t *testing.T) {
 	})
 
 	t.Run("SearchFilterItems/EmptySliceMatchesNothing", func(t *testing.T) {
-		// empty non-nil slice → condition active → IN (NULL) → zero rows
-		ids, err := q.SearchFilterItems(ctx, dbmysql.SearchFilterItemsParams{
+		ids, err := q.SearchFilterItems(ctx, conn, dbpostgres.SearchFilterItemsParams{
 			Kind: "widget",
 			Ids:  []int64{},
 		})
@@ -98,11 +83,9 @@ func TestDynamicFilter(t *testing.T) {
 	})
 
 	t.Run("SearchFilterItems/NilableSliceSkipsCondition", func(t *testing.T) {
-		// NilableSlice(empty) → nil → clause skipped for callers who want
-		// empty to mean "don't filter"
-		ids, err := q.SearchFilterItems(ctx, dbmysql.SearchFilterItemsParams{
+		ids, err := q.SearchFilterItems(ctx, conn, dbpostgres.SearchFilterItemsParams{
 			Kind: "widget",
-			Ids:  dbmysql.NilableSlice([]int64{}),
+			Ids:  dbpostgres.NilableSlice([]int64{}),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -111,4 +94,6 @@ func TestDynamicFilter(t *testing.T) {
 			t.Errorf("NilableSlice(empty) ids: got %v, want 2 rows (clause skipped)", ids)
 		}
 	})
+
+	_ = id1
 }

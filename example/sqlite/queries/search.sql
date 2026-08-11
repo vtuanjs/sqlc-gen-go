@@ -28,15 +28,20 @@ ORDER BY
   id ASC;
 
 -- name: SearchUsersOrderedByID :many
+-- Every ORDER BY entry is removable. The static `TRUE` keeps the clause valid
+-- whichever entries drop out, and doubles as the trailing static line sqlc's
+-- SQLite parser needs: it discards a `-- :if` comment sitting on a statement's
+-- last line, so an annotation must never be the final token before the `;`.
 SELECT * FROM users
 WHERE name = @name
   AND email = @email -- :if @email
 ORDER BY
   id ASC,  -- :if @id_asc
-  id DESC  -- :if @id_desc
-;
+  id DESC, -- :if @id_desc
+  TRUE;
 
 -- name: SearchUsersWithSameNameAndEmail :many
+-- The same parameter gates (and fills) two conditions.
 SELECT * FROM users
 WHERE 1 = 1
   AND name = @name -- :if @name
@@ -67,11 +72,12 @@ ORDER BY id ASC;
 -- users matching the name are returned (nil slice = inactive filter).
 SELECT * FROM users
 WHERE name = @name
-  AND id = ANY(@ids::bigint[]) -- :if @ids
+  AND id IN (sqlc.slice(ids)) -- :if @ids
 ORDER BY id ASC;
 
 -- name: SearchUsersWithPhone :many
--- A flag-only parameter: with_phone gates a clause that binds no value.
+-- SQLite has no FOR UPDATE, so this stands in for the postgres/mysql lock
+-- example: a flag-only parameter that gates a clause without binding a value.
 SELECT * FROM users
 WHERE name = @name
   AND phone IS NOT NULL -- :if $with_phone

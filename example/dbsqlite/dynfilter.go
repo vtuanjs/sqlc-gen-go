@@ -715,6 +715,41 @@ func NilableSlice[T any](s []T) []T {
 	return s
 }
 
+// Nilable converts a zero value to nil so a :if-gated scalar condition is
+// skipped ("don't filter") instead of matching on the zero value. It works for
+// any comparable type — text, numbers, bools, time.Time:
+//
+//	Email: Nilable(form.Email)     // "" → nil → clause skipped
+//	Stock: Nilable(form.MinStock)  // 0  → nil → clause skipped
+//
+// Use Ptr instead when the zero value is a value worth filtering on (matching
+// the empty string, or stock = 0).
+func Nilable[T comparable](v T) *T {
+	var zero T
+	if v == zero {
+		return nil
+	}
+	return &v
+}
+
+// NilableIf converts v to nil unless keep is true. Use it when "should I
+// filter?" is decided by something other than the value itself, so a zero
+// value can still be an active filter:
+//
+//	Stock: NilableIf(form.MinStock, form.FilterByStock)
+func NilableIf[T any](v T, keep bool) *T {
+	if !keep {
+		return nil
+	}
+	return &v
+}
+
+// Ptr returns a pointer to v, keeping a :if-gated condition active even for a
+// zero value — the counterpart to Nilable.
+func Ptr[T any](v T) *T {
+	return &v
+}
+
 // dynParseInt parses a non-negative integer from s[0:length] without allocations.
 // Returns -1 if the string contains non-digit characters.
 func dynParseInt(s string, length int) int {

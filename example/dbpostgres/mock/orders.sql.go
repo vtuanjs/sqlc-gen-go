@@ -102,11 +102,12 @@ func (mr *MockOrdersQuerierMockRecorder) ListOrdersByUser(ctx, db, arg any) *gom
 }
 
 // UpdateOrderStatus mocks base method.
-func (m *MockOrdersQuerier) UpdateOrderStatus(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.UpdateOrderStatusParams) error {
+func (m *MockOrdersQuerier) UpdateOrderStatus(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.UpdateOrderStatusParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOrderStatus", ctx, db, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateOrderStatus indicates an expected call of UpdateOrderStatus.

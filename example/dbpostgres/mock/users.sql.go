@@ -41,6 +41,21 @@ func (m *MockUsersQuerier) EXPECT() *MockUsersQuerierMockRecorder {
 	return m.recorder
 }
 
+// CountUsers mocks base method.
+func (m *MockUsersQuerier) CountUsers(ctx context.Context, db dbpostgres.DBTX) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUsers", ctx, db)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUsers indicates an expected call of CountUsers.
+func (mr *MockUsersQuerierMockRecorder) CountUsers(ctx, db any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsers", reflect.TypeOf((*MockUsersQuerier)(nil).CountUsers), ctx, db)
+}
+
 // CreateUser mocks base method.
 func (m *MockUsersQuerier) CreateUser(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.CreateUserParams) (*dbpostgres.User, error) {
 	m.ctrl.T.Helper()

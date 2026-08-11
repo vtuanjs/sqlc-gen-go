@@ -229,6 +229,59 @@ func TestDynamicSQL(t *testing.T) {
 		}
 	})
 
+	// Automatic cleanup (dangling comma, orphaned clause keyword) only inspects
+	// the query's LAST line — that keeps Build off the hot path of rescanning
+	// every line. A clause that is not last, because LIMIT/OFFSET/FOR UPDATE
+	// follows it, must therefore end with a static sentinel entry.
+	const orderByBeforeLimitQuery = "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  id DESC, -- :if $3\n  TRUE\nLIMIT 10"
+
+	t.Run("OrderBy/BeforeLimit/SentinelSurvivesEmpty", func(t *testing.T) {
+		sql, args := dbpostgres.DynamicSQL(orderByBeforeLimitQuery, []any{"x", false, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  TRUE\nLIMIT 10")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	t.Run("OrderBy/BeforeLimit/SentinelAbsorbsComma", func(t *testing.T) {
+		sql, _ := dbpostgres.DynamicSQL(orderByBeforeLimitQuery, []any{"x", true, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC,\n  TRUE\nLIMIT 10")
+	})
+
+	t.Run("OrderBy/BeforeLimit/KeptWhenHasContent", func(t *testing.T) {
+		sql, _ := dbpostgres.DynamicSQL(orderByBeforeLimitQuery, []any{"x", true, true})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC,\n  id DESC,\n  TRUE\nLIMIT 10")
+	})
+
+	t.Run("Where/SentinelKeepsClauseValid", func(t *testing.T) {
+		// A leading TRUE lets any condition — including the first — drop out.
+		query := "SELECT * FROM t\nWHERE\n  TRUE\n  AND a = $1 -- :if $1\n  AND b = $2 -- :if $2\nORDER BY id ASC"
+		var a, b *string
+		sql, args := dbpostgres.DynamicSQL(query, []any{a, b})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE\n  TRUE\nORDER BY id ASC")
+		if len(args) != 0 {
+			t.Errorf("args len: got %d, want 0", len(args))
+		}
+	})
+
+	t.Run("Where/NotLastLineIsNotCleaned", func(t *testing.T) {
+		// Pins the documented limit of last-line-only cleanup: without a
+		// sentinel, an orphaned WHERE followed by another clause is left as is.
+		// If cleanup is ever generalised, update this test and the README.
+		query := "SELECT * FROM t\nWHERE\n  a = $1 -- :if $1\nORDER BY id ASC"
+		var a *string
+		sql, _ := dbpostgres.DynamicSQL(query, []any{a})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE\nORDER BY id ASC")
+	})
+
+	t.Run("SelectList/CommaBeforeFROMNotStripped", func(t *testing.T) {
+		// "b" continues the select list, so the comma after "a" must survive.
+		query := "SELECT\n  a,\n  b\nFROM t\nWHERE c = $1 -- :if $1"
+		var c *string
+		sql, _ := dbpostgres.DynamicSQL(query, []any{c})
+		assertSQL(t, sql, "SELECT\n  a,\n  b\nFROM t")
+	})
+
 	const orderByWithStaticLineQuery = "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  name DESC, -- :if $3\n  created_at DESC"
 
 	t.Run("OrderBy/BlockExistWithStaticLine", func(t *testing.T) {
