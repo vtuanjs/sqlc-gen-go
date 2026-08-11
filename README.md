@@ -185,19 +185,22 @@ options:
 -- name: SearchUsers :many
 SELECT * FROM users
 WHERE
-  1 = 1
-  AND email = @email -- :if @email
+  TRUE
+  -- :if @email
+  AND email = @email
   -- :if @phone
   AND phone = @phone
-  AND EXISTS ( -- :if @has_orders
+  -- :if @has_orders
+  AND EXISTS (
     SELECT 1 FROM orders
     WHERE orders.user_id = users.id
-      AND orders.created_at >= @orders_since -- :if @orders_since
+      -- :if @orders_since
+      AND orders.created_at >= @orders_since
   )
 ORDER BY id ASC;
 ```
 
-The first `:if` is the inline style (omit this line when `email` is nil); the standalone `-- :if @phone` is the top-level style (omit the next line); `@has_orders` is a flag-only boolean that omits the whole `EXISTS (…)` block when false. The `:if` annotation must be the last thing on its line — text after it is not parsed.
+Every annotation here uses the top-level style: the comment sits on its own line and gates the line that follows it (omit `AND email = @email` when `email` is nil, and so on). `@has_orders` is a flag-only boolean, and because the line it gates opens a paren block, a `false` value omits the whole `EXISTS (…)` block. The `:if` annotation must be the last thing on its line — text after it is not parsed.
 
 ```sql
 
@@ -208,9 +211,12 @@ WHERE
   AND email = @email -- :if @email
 ORDER BY
   id ASC,  -- :if @id_asc
-  id DESC,  -- :if @id_desc
+  -- :if @id_desc
+  id DESC,
   TRUE
 ```
+
+This one mixes both styles: `-- :if @email` and `-- :if @id_asc` are inline (trailing the line they gate), while `-- :if @id_desc` is top-level (gating the `id DESC,` line below it). The two styles can be combined freely in the same query.
 
 Note: We use TRUE to prevent SQL errors when a line is omitted.
 
