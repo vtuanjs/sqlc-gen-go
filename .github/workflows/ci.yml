@@ -22,4 +22,6 @@ jobs:
     - run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
     - run: go install go.uber.org/mock/mockgen@v0.6.0
     - run: make generate-example
+    - run: git diff --exit-code
     - run: make test
+    - run: make example-e2e

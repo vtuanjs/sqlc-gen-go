@@ -11,7 +11,7 @@ package mock
 
 import (
 	context "context"
-	db "example/db"
+	dbpostgres "example/dbpostgres"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -42,16 +42,16 @@ func (m *MockLockQuerier) EXPECT() *MockLockQuerierMockRecorder {
 }
 
 // GetUserWithLock mocks base method.
-func (m *MockLockQuerier) GetUserWithLock(ctx context.Context, arg1 db.DBTX, arg db.GetUserWithLockParams) (*db.User, error) {
+func (m *MockLockQuerier) GetUserWithLock(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.GetUserWithLockParams) (*dbpostgres.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserWithLock", ctx, arg1, arg)
-	ret0, _ := ret[0].(*db.User)
+	ret := m.ctrl.Call(m, "GetUserWithLock", ctx, db, arg)
+	ret0, _ := ret[0].(*dbpostgres.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUserWithLock indicates an expected call of GetUserWithLock.
-func (mr *MockLockQuerierMockRecorder) GetUserWithLock(ctx, arg1, arg any) *gomock.Call {
+func (mr *MockLockQuerierMockRecorder) GetUserWithLock(ctx, db, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserWithLock", reflect.TypeOf((*MockLockQuerier)(nil).GetUserWithLock), ctx, arg1, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserWithLock", reflect.TypeOf((*MockLockQuerier)(nil).GetUserWithLock), ctx, db, arg)
 }

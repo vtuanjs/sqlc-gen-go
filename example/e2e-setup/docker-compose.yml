@@ -12,3 +12,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: sqlc-test
+    ports:
+      - "6603:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pmysql"]
+      interval: 5s
+      timeout: 5s
+      retries: 12

@@ -15,6 +15,8 @@ var ifAnnotationRe = regexp.MustCompile(`--\s*:if\s+[@$]\w+(?:\s+[@$]\w+)*\s*$`)
 // ifParamRe extracts individual @name or $name tokens from an annotation.
 var ifParamRe = regexp.MustCompile(`[@$](\w+)`)
 
+var sqlcSliceRe = regexp.MustCompile(`/\*SLICE:([^*]+)\*/\?`)
+
 // parseIfNames returns all param names listed in a :if annotation string.
 func parseIfNames(annotation string) []string {
 	matches := ifParamRe.FindAllStringSubmatch(annotation, -1)
@@ -75,6 +77,8 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 			paramByName[p.Column.Name] = p.Number
 		}
 	}
+
+	sql = numberSqlcSlices(sql, paramByName)
 
 	lines := strings.Split(sql, "\n")
 
@@ -255,6 +259,19 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 		FlagParams:              flagParams,
 		OrderedArgNames:         orderedArgNames,
 	}, nil
+}
+
+func numberSqlcSlices(sql string, paramByName map[string]int32) string {
+	return sqlcSliceRe.ReplaceAllStringFunc(sql, func(marker string) string {
+		name := sqlcSliceRe.FindStringSubmatch(marker)[1]
+		n, ok := paramByName[name]
+		if !ok {
+			// Unknown slice name: leave the marker untouched rather than
+			// emitting an unresolvable ?0 placeholder.
+			return marker
+		}
+		return fmt.Sprintf("/*SLICE:%s*/?%d", name, n)
+	})
 }
 
 // structName converts snake_case to CamelCase (reuses the same logic as StructName but simplified).

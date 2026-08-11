@@ -378,3 +378,19 @@ func TestParseDynFilter_OnlyRequiredParams(t *testing.T) {
 		t.Error("expected nil when no :if annotations are present")
 	}
 }
+
+func TestParseDynFilter_SqlcSlicePunctuatedName(t *testing.T) {
+	info, err := ParseDynFilter(
+		"SELECT * FROM t\nWHERE active = ?1\n  AND id IN (/*SLICE:team-ids*/?) -- :if @active",
+		[]*plugin.Parameter{makeParam("active", 1), makeParam("team-ids", 2)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+	if !strings.Contains(info.AnnotatedSQL, "/*SLICE:team-ids*/?2") {
+		t.Errorf("expected punctuated slice marker to be numbered:\n%s", info.AnnotatedSQL)
+	}
+}

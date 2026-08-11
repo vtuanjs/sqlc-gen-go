@@ -16,7 +16,7 @@ go test ./internal/... -run TestName
 go test ./internal/opts/... -fuzz FuzzOverride
 ```
 
-The WASM build requires `GOOS=wasip1 GOARCH=wasm`. The `make test` target builds the WASM first because integration tests depend on it. E2E tests against a real database live in `example/e2e/` and are run separately (`make example-e2e`).
+The WASM build requires `GOOS=wasip1 GOARCH=wasm`. The `make test` target builds the WASM first because integration tests depend on it. E2E tests against real databases live in `example/e2e-postgres/`, `example/e2e-mysql/`, and `example/e2e-sqlite/` and are run separately (`make example-e2e`, or per-engine `example-e2e-{postgres,mysql,sqlite}` targets).
 
 ## Architecture
 

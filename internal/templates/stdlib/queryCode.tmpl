@@ -159,8 +159,8 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{define "queryCodeStdExec"}}
     {{- if .HasDynFilter }}
         dynQuery, dynArgs := {{.DynQueryVar}}.Build([]any{ {{.DynFilterArgs}} })
-        {{- queryRetval . }} {{ queryMethod . }}(ctx, dynQuery, dynArgs...)
-    {{- else if .Arg.HasSqlcSlices }}
+        {{ queryRetval . }} {{ queryMethod . }}(ctx, dynQuery, dynArgs...)
+    {{- else if .Arg.HasSqlcSlices -}}
         query := {{.ConstantName}}
         var queryParams []interface{}
         {{- if .Arg.Struct }}

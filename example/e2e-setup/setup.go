@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"example/db"
+	"example/dbpostgres"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -76,10 +76,10 @@ func Migrate(ctx context.Context, c *pgx.Conn, schemaPath string) error {
 }
 
 // InsertUser inserts a user and registers cleanup to delete it after the test.
-func InsertUser(t testing.TB, conn *pgx.Conn, name, email string, phone *string) *db.User {
+func InsertUser(t testing.TB, conn *pgx.Conn, name, email string, phone *string) *dbpostgres.User {
 	t.Helper()
 	ctx := context.Background()
-	var u db.User
+	var u dbpostgres.User
 	err := conn.QueryRow(ctx,
 		`INSERT INTO users (name, email, phone) VALUES ($1, $2, $3)
 		 RETURNING id, name, email, created_at, phone`,

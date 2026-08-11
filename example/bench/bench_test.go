@@ -1,7 +1,7 @@
 package bench
 
 import (
-	"example/db"
+	"example/dbpostgres"
 	"fmt"
 	"strings"
 	"testing"
@@ -128,7 +128,7 @@ var (
 
 func BenchmarkDynamicSQL_NoOptional(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		db.DynamicSQL(db.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
+		dbpostgres.DynamicSQL(dbpostgres.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
 	}
 }
 
@@ -140,7 +140,7 @@ func BenchmarkManual_NoOptional(b *testing.B) {
 
 func BenchmarkDynamicSQL_AllOptional(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		db.DynamicSQL(db.SearchUsers, []any{"alice", benchEmail, benchPhone, benchTime, true})
+		dbpostgres.DynamicSQL(dbpostgres.SearchUsers, []any{"alice", benchEmail, benchPhone, benchTime, true})
 	}
 }
 
@@ -162,12 +162,12 @@ var (
 // preCompiledSearchUsers simulates the generated package-level var:
 //
 //	var _searchUsersDynQ = dynCompile(SearchUsersSQL)
-var preCompiledSearchUsers = db.CompileDynSQL(db.SearchUsers)
-var preCompiledLargeQuery = db.CompileDynSQL(largeQuery)
+var preCompiledSearchUsers = dbpostgres.CompileDynSQL(dbpostgres.SearchUsers)
+var preCompiledLargeQuery = dbpostgres.CompileDynSQL(largeQuery)
 
 func BenchmarkDynamicSQL_Large_NoOptional(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		db.DynamicSQL(largeQuery, largeArgsNone)
+		dbpostgres.DynamicSQL(largeQuery, largeArgsNone)
 	}
 }
 
@@ -185,7 +185,7 @@ func BenchmarkManual_Large_NoOptional(b *testing.B) {
 
 func BenchmarkDynamicSQL_Large_AllOptional(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		db.DynamicSQL(largeQuery, largeArgsAll)
+		dbpostgres.DynamicSQL(largeQuery, largeArgsAll)
 	}
 }
 
@@ -203,7 +203,7 @@ func BenchmarkManual_Large_AllOptional(b *testing.B) {
 
 func BenchmarkDynamicSQL_NoOptional2(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		db.DynamicSQL(db.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
+		dbpostgres.DynamicSQL(dbpostgres.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
 	}
 }
 

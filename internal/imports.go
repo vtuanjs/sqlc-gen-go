@@ -386,7 +386,7 @@ func (i *importer) queryImports(filename string) fileImports {
 	// Search for sqlc.slice() calls
 	sqlcSliceScan := func() bool {
 		for _, q := range gq {
-			if q.Arg.HasSqlcSlices() {
+			if q.Arg.HasSqlcSlices() && !q.HasDynFilter {
 				return true
 			}
 		}

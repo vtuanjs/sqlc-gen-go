@@ -1,4 +1,4 @@
-.PHONY: build test example-e2e example-e2e-setup example-e2e-down
+.PHONY: build test example-e2e example-e2e-postgres example-e2e-mysql example-e2e-sqlite example-e2e-setup example-e2e-down
 
 build:
 	go build ./...
@@ -31,8 +31,21 @@ example-e2e-setup:
 example-e2e-down:
 	docker compose -f $(CURDIR)/example/e2e-setup/docker-compose.yml down
 
-example-e2e: example-e2e-setup
-	cd example && go test ./e2e/... -v; \
+define run-docker-e2e
+	cd example && go test $(1) -count=1 -v; \
 	EXIT=$$?; \
 	$(MAKE) -C $(CURDIR) example-e2e-down; \
 	exit $$EXIT
+endef
+
+example-e2e: example-e2e-setup
+	$(call run-docker-e2e,./e2e-postgres/... ./e2e-mysql/... ./e2e-sqlite/...)
+
+example-e2e-postgres: example-e2e-setup
+	$(call run-docker-e2e,./e2e-postgres/...)
+
+example-e2e-mysql: example-e2e-setup
+	$(call run-docker-e2e,./e2e-mysql/...)
+
+example-e2e-sqlite:
+	cd example && go test ./e2e-sqlite/... -count=1 -v

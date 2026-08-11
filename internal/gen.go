@@ -21,6 +21,7 @@ type tmplCtx struct {
 	Q           string
 	Package     string
 	SQLDriver   opts.SQLDriver
+	Engine      string
 	Enums       []Enum
 	Structs     []Struct
 	GoQueries   []Query
@@ -233,6 +234,11 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		Structs: structs,
 	}
 
+	sqlDriver := parseDriver(options.SqlPackage)
+	if options.SqlDriver != "" {
+		sqlDriver = opts.SQLDriver(options.SqlDriver)
+	}
+
 	tctx := tmplCtx{
 		EmitInterface:             options.EmitInterface,
 		EmitJSONTags:              options.EmitJsonTags,
@@ -245,7 +251,8 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		EmitAllEnumValues:         options.EmitAllEnumValues,
 		UsesCopyFrom:              usesCopyFrom(queries),
 		UsesBatch:                 usesBatch(queries),
-		SQLDriver:                 parseDriver(options.SqlPackage),
+		SQLDriver:                 sqlDriver,
+		Engine:                    req.GetSettings().GetEngine(),
 		Q:                         "`",
 		Package:                   options.Package,
 		Enums:                     enums,
@@ -271,7 +278,6 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		if err := checkNoTimesForMySQLCopyFrom(queries); err != nil {
 			return nil, err
 		}
-		tctx.SQLDriver = opts.SQLDriverGoSQLDriverMySQL
 	}
 
 	if tctx.UsesBatch && !tctx.SQLDriver.IsPGX() {

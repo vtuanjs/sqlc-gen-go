@@ -1,22 +1,22 @@
-package e2e
+package e2epostgres
 
 import (
 	"context"
 	"testing"
 
-	"example/db"
+	"example/dbpostgres"
 	setup "example/e2e-setup"
 )
 
 func TestGetUserWithLock(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewLockQueries()
+	q := dbpostgres.NewLockQueries()
 
 	user := setup.InsertUser(t, conn, "lockuser", "lockuser@example.com", nil)
 
 	t.Run("WithoutLock", func(t *testing.T) {
-		got, err := q.GetUserWithLock(ctx, conn, db.GetUserWithLockParams{
+		got, err := q.GetUserWithLock(ctx, conn, dbpostgres.GetUserWithLockParams{
 			ID:   user.ID,
 			Lock: false,
 		})
@@ -36,7 +36,7 @@ func TestGetUserWithLock(t *testing.T) {
 		}
 		defer tx.Rollback(ctx)
 
-		got, err := q.GetUserWithLock(ctx, tx, db.GetUserWithLockParams{
+		got, err := q.GetUserWithLock(ctx, tx, dbpostgres.GetUserWithLockParams{
 			ID:   user.ID,
 			Lock: true,
 		})
@@ -49,7 +49,7 @@ func TestGetUserWithLock(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		got, err := q.GetUserWithLock(ctx, conn, db.GetUserWithLockParams{
+		got, err := q.GetUserWithLock(ctx, conn, dbpostgres.GetUserWithLockParams{
 			ID:   -1,
 			Lock: false,
 		})

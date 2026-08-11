@@ -1,18 +1,18 @@
-package e2e
+package e2epostgres
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"example/db"
+	"example/dbpostgres"
 	setup "example/e2e-setup"
 )
 
 func TestSearchUsers(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewSearchQueries()
+	q := dbpostgres.NewSearchQueries()
 
 	alice1 := setup.InsertUser(t, conn, "alice", "alice@example.com", setup.StrPtr("+1111111111"))
 	alice2 := setup.InsertUser(t, conn, "alice", "alice2@example.com", nil)
@@ -20,7 +20,7 @@ func TestSearchUsers(t *testing.T) {
 	setup.InsertOrder(t, conn, alice1.ID, time.Now().Add(-24*time.Hour))
 
 	t.Run("NoOptionalFilters", func(t *testing.T) {
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{Name: "alice"})
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{Name: "alice"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -30,7 +30,7 @@ func TestSearchUsers(t *testing.T) {
 	})
 
 	t.Run("EmailFilter", func(t *testing.T) {
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{
 			Name:  "alice",
 			Email: setup.StrPtr("alice@example.com"),
 		})
@@ -43,7 +43,7 @@ func TestSearchUsers(t *testing.T) {
 	})
 
 	t.Run("PhoneFilter", func(t *testing.T) {
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{
 			Name:  "alice",
 			Phone: setup.StrPtr("+1111111111"),
 		})
@@ -56,7 +56,7 @@ func TestSearchUsers(t *testing.T) {
 	})
 
 	t.Run("HasOrders_False", func(t *testing.T) {
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{
 			Name:      "alice",
 			HasOrders: false,
 		})
@@ -69,7 +69,7 @@ func TestSearchUsers(t *testing.T) {
 	})
 
 	t.Run("HasOrders_True", func(t *testing.T) {
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{
 			Name:      "alice",
 			HasOrders: true,
 		})
@@ -83,7 +83,7 @@ func TestSearchUsers(t *testing.T) {
 
 	t.Run("HasOrders_True_WithOrdersSince_Match", func(t *testing.T) {
 		since := time.Now().Add(-48 * time.Hour)
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{
 			Name:        "alice",
 			HasOrders:   true,
 			OrdersSince: &since,
@@ -98,7 +98,7 @@ func TestSearchUsers(t *testing.T) {
 
 	t.Run("HasOrders_True_WithOrdersSince_NoMatch", func(t *testing.T) {
 		since := time.Now().Add(time.Hour) // future — no orders qualify
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{
 			Name:        "alice",
 			HasOrders:   true,
 			OrdersSince: &since,
@@ -112,7 +112,7 @@ func TestSearchUsers(t *testing.T) {
 	})
 
 	t.Run("NoMatch", func(t *testing.T) {
-		users, err := q.SearchUsers(ctx, conn, db.SearchUsersParams{Name: bob.Name})
+		users, err := q.SearchUsers(ctx, conn, dbpostgres.SearchUsersParams{Name: bob.Name})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,16 +125,16 @@ func TestSearchUsers(t *testing.T) {
 }
 
 func TestSearchUsersOrdered(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewSearchQueries()
+	q := dbpostgres.NewSearchQueries()
 
 	// Insert two alices so ordering is observable
 	a1 := setup.InsertUser(t, conn, "alice", "alice.a@example.com", nil)
 	a2 := setup.InsertUser(t, conn, "alice", "alice.b@example.com", nil)
 
 	t.Run("NoOrderFlags", func(t *testing.T) {
-		users, err := q.SearchUsersOrdered(ctx, conn, db.SearchUsersOrderedParams{Name: "alice"})
+		users, err := q.SearchUsersOrdered(ctx, conn, dbpostgres.SearchUsersOrderedParams{Name: "alice"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -148,7 +148,7 @@ func TestSearchUsersOrdered(t *testing.T) {
 	})
 
 	t.Run("EmailFilter", func(t *testing.T) {
-		users, err := q.SearchUsersOrdered(ctx, conn, db.SearchUsersOrderedParams{
+		users, err := q.SearchUsersOrdered(ctx, conn, dbpostgres.SearchUsersOrderedParams{
 			Name:  "alice",
 			Email: setup.StrPtr("alice.a@example.com"),
 		})
@@ -161,7 +161,7 @@ func TestSearchUsersOrdered(t *testing.T) {
 	})
 
 	t.Run("OrderCreatedAtDesc", func(t *testing.T) {
-		users, err := q.SearchUsersOrdered(ctx, conn, db.SearchUsersOrderedParams{
+		users, err := q.SearchUsersOrdered(ctx, conn, dbpostgres.SearchUsersOrderedParams{
 			Name:               "alice",
 			OrderCreatedAtDesc: true,
 		})
@@ -174,7 +174,7 @@ func TestSearchUsersOrdered(t *testing.T) {
 	})
 
 	t.Run("OrderNameAsc", func(t *testing.T) {
-		users, err := q.SearchUsersOrdered(ctx, conn, db.SearchUsersOrderedParams{
+		users, err := q.SearchUsersOrdered(ctx, conn, dbpostgres.SearchUsersOrderedParams{
 			Name:         "alice",
 			OrderNameAsc: true,
 		})
@@ -190,15 +190,15 @@ func TestSearchUsersOrdered(t *testing.T) {
 }
 
 func TestSearchUsersByContact(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewSearchQueries()
+	q := dbpostgres.NewSearchQueries()
 
 	alice := setup.InsertUser(t, conn, "alice", "alice@example.com", setup.StrPtr("+1111111111"))
 	_ = setup.InsertUser(t, conn, "alice", "other@example.com", setup.StrPtr("+9999999999"))
 
 	t.Run("BothNil", func(t *testing.T) {
-		users, err := q.SearchUsersByContact(ctx, conn, db.SearchUsersByContactParams{Name: "alice"})
+		users, err := q.SearchUsersByContact(ctx, conn, dbpostgres.SearchUsersByContactParams{Name: "alice"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +209,7 @@ func TestSearchUsersByContact(t *testing.T) {
 	})
 
 	t.Run("EmailAndPhone_Match", func(t *testing.T) {
-		users, err := q.SearchUsersByContact(ctx, conn, db.SearchUsersByContactParams{
+		users, err := q.SearchUsersByContact(ctx, conn, dbpostgres.SearchUsersByContactParams{
 			Name:  "alice",
 			Email: setup.StrPtr("alice@example.com"),
 			Phone: setup.StrPtr("+1111111111"),
@@ -223,7 +223,7 @@ func TestSearchUsersByContact(t *testing.T) {
 	})
 
 	t.Run("EmailAndPhone_NoMatch", func(t *testing.T) {
-		users, err := q.SearchUsersByContact(ctx, conn, db.SearchUsersByContactParams{
+		users, err := q.SearchUsersByContact(ctx, conn, dbpostgres.SearchUsersByContactParams{
 			Name:  "alice",
 			Email: setup.StrPtr("nobody@example.com"),
 			Phone: setup.StrPtr("+0000000000"),
@@ -238,16 +238,16 @@ func TestSearchUsersByContact(t *testing.T) {
 }
 
 func TestSearchUsersOrderedByID(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewSearchQueries()
+	q := dbpostgres.NewSearchQueries()
 
 	a1 := setup.InsertUser(t, conn, "alice", "alice.x@example.com", nil)
 	a2 := setup.InsertUser(t, conn, "alice", "alice.y@example.com", nil)
 
 	t.Run("NoOrderFlags", func(t *testing.T) {
 		// Both flags false → ORDER BY removed entirely, query still valid.
-		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
+		users, err := q.SearchUsersOrderedByID(ctx, conn, dbpostgres.SearchUsersOrderedByIDParams{
 			Name: "alice",
 		})
 		if err != nil {
@@ -259,7 +259,7 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	})
 
 	t.Run("IDAsc", func(t *testing.T) {
-		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
+		users, err := q.SearchUsersOrderedByID(ctx, conn, dbpostgres.SearchUsersOrderedByIDParams{
 			Name:  "alice",
 			IdAsc: true,
 		})
@@ -275,7 +275,7 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	})
 
 	t.Run("IDDesc", func(t *testing.T) {
-		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
+		users, err := q.SearchUsersOrderedByID(ctx, conn, dbpostgres.SearchUsersOrderedByIDParams{
 			Name:   "alice",
 			IdDesc: true,
 		})
@@ -291,7 +291,7 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	})
 
 	t.Run("IDAscAndIDDesc", func(t *testing.T) {
-		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
+		users, err := q.SearchUsersOrderedByID(ctx, conn, dbpostgres.SearchUsersOrderedByIDParams{
 			Name:   "alice",
 			IdAsc:  true,
 			IdDesc: true,
@@ -305,7 +305,7 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	})
 
 	t.Run("WithEmailFilter", func(t *testing.T) {
-		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
+		users, err := q.SearchUsersOrderedByID(ctx, conn, dbpostgres.SearchUsersOrderedByIDParams{
 			Name:   "alice",
 			Email:  setup.StrPtr("alice.x@example.com"),
 			IdAsc:  true,
@@ -321,16 +321,16 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 }
 
 func TestSearchUsersByIDs(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewSearchQueries()
+	q := dbpostgres.NewSearchQueries()
 
 	alice := setup.InsertUser(t, conn, "alice", "alice.ids@example.com", nil)
 	bob := setup.InsertUser(t, conn, "alice", "bob.ids@example.com", nil) // same name, different id
 
 	t.Run("NilIDs_ReturnsAll", func(t *testing.T) {
 		// nil slice → condition skipped → both users returned
-		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{Name: "alice"})
+		users, err := q.SearchUsersByIDs(ctx, conn, dbpostgres.SearchUsersByIDsParams{Name: "alice"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -345,7 +345,7 @@ func TestSearchUsersByIDs(t *testing.T) {
 
 	t.Run("SpecificIDs_OnlyAlice", func(t *testing.T) {
 		// non-nil slice → condition active → only alice matches
-		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+		users, err := q.SearchUsersByIDs(ctx, conn, dbpostgres.SearchUsersByIDsParams{
 			Name: "alice",
 			Ids:  []int64{alice.ID},
 		})
@@ -358,7 +358,7 @@ func TestSearchUsersByIDs(t *testing.T) {
 	})
 
 	t.Run("MultipleIDs_BothMatch", func(t *testing.T) {
-		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+		users, err := q.SearchUsersByIDs(ctx, conn, dbpostgres.SearchUsersByIDsParams{
 			Name: "alice",
 			Ids:  []int64{alice.ID, bob.ID},
 		})
@@ -370,9 +370,9 @@ func TestSearchUsersByIDs(t *testing.T) {
 		}
 	})
 
-	t.Run("EmptySlice_NoMatch", func(t *testing.T) {
-		// empty (non-nil) slice → condition active with empty set → no rows
-		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+	t.Run("EmptySlice_MatchesNothing", func(t *testing.T) {
+		// empty non-nil slice → condition active → IN (NULL) → zero rows
+		users, err := q.SearchUsersByIDs(ctx, conn, dbpostgres.SearchUsersByIDsParams{
 			Name: "alice",
 			Ids:  []int64{},
 		})
@@ -380,12 +380,27 @@ func TestSearchUsersByIDs(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(users) != 0 {
-			t.Errorf("got %d users, want 0 for empty id list", len(users))
+			t.Errorf("got %d users, want 0 for empty id list (filter by empty set)", len(users))
+		}
+	})
+
+	t.Run("NilableSlice_EmptySkipsCondition", func(t *testing.T) {
+		// NilableSlice turns empty into nil for callers who want empty to
+		// mean "don't filter"
+		users, err := q.SearchUsersByIDs(ctx, conn, dbpostgres.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  dbpostgres.NilableSlice([]int64{}),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2 for NilableSlice(empty) (clause skipped)", len(users))
 		}
 	})
 
 	t.Run("IDNotInList_NoMatch", func(t *testing.T) {
-		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+		users, err := q.SearchUsersByIDs(ctx, conn, dbpostgres.SearchUsersByIDsParams{
 			Name: "alice",
 			Ids:  []int64{-1},
 		})
@@ -399,9 +414,9 @@ func TestSearchUsersByIDs(t *testing.T) {
 }
 
 func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
-	conn := setup.NewDB(t, "../schema.sql")
+	conn := setup.NewDB(t, "../postgres/schema.sql")
 	ctx := context.Background()
-	q := db.NewSearchQueries()
+	q := dbpostgres.NewSearchQueries()
 
 	// "dual" user: name and email are the same string — matches both conditions.
 	dual := setup.InsertUser(t, conn, "dual", "dual", nil)
@@ -410,7 +425,7 @@ func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
 
 	t.Run("NameNil_ReturnsAll", func(t *testing.T) {
 		// No filter applied → all users in the table (scoped to this test's DB).
-		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{})
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, dbpostgres.SearchUsersWithSameNameAndEmailParams{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -425,7 +440,7 @@ func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
 
 	t.Run("NameProvided_OnlyDualUser", func(t *testing.T) {
 		// Both name = $1 AND email = $1 must hold — only dual qualifies.
-		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, dbpostgres.SearchUsersWithSameNameAndEmailParams{
 			Name: setup.StrPtr("dual"),
 		})
 		if err != nil {
@@ -438,7 +453,7 @@ func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
 
 	t.Run("NameProvided_NoMatch", func(t *testing.T) {
 		// No user has both name="nobody" and email="nobody".
-		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, dbpostgres.SearchUsersWithSameNameAndEmailParams{
 			Name: setup.StrPtr("nobody"),
 		})
 		if err != nil {
@@ -452,7 +467,7 @@ func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
 	t.Run("NormalUser_NotReturned", func(t *testing.T) {
 		// Confirm normal (name="dual", email="dual@example.com") is excluded
 		// when the filter is active — email doesn't match the search value.
-		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, dbpostgres.SearchUsersWithSameNameAndEmailParams{
 			Name: setup.StrPtr("dual"),
 		})
 		if err != nil {

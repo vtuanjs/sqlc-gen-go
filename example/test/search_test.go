@@ -1,7 +1,7 @@
 package db
 
 import (
-	"example/db"
+	"example/dbpostgres"
 	"testing"
 	"time"
 )
@@ -24,7 +24,7 @@ func TestSearchUsers(t *testing.T) {
 	}
 
 	t.Run("NoOptionalFilters", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(nil, nil, nil, false))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(nil, nil, nil, false))
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -35,7 +35,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("EmailOnly", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(strPtr("alice@example.com"), nil, nil, false))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(strPtr("alice@example.com"), nil, nil, false))
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -47,7 +47,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("PhoneOnly", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(nil, strPtr("+1234567890"), nil, false))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(nil, strPtr("+1234567890"), nil, false))
 		// email ($2) removed → phone renumbered from $3 to $2
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
@@ -60,7 +60,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("EmailAndPhone", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(strPtr("a@b.com"), strPtr("+1"), nil, false))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(strPtr("a@b.com"), strPtr("+1"), nil, false))
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -73,7 +73,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("HasOrders_False", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(nil, nil, nil, false))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(nil, nil, nil, false))
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -84,7 +84,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("HasOrders_True_NoOrdersSince", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(nil, nil, nil, true))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(nil, nil, nil, true))
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -99,7 +99,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("HasOrders_True_WithOrdersSince", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(nil, nil, &now, true))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(nil, nil, &now, true))
 		// email($2) and phone($3) removed → ordersSince renumbered from $4 to $2
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
@@ -117,7 +117,7 @@ ORDER BY id ASC`)
 
 	t.Run("HasOrders_False_OrdersSince_Ignored", func(t *testing.T) {
 		// OrdersSince is set but HasOrders=false — the whole EXISTS block should be dropped
-		sql, a := db.DynamicSQL(db.SearchUsers, args(nil, nil, &now, false))
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(nil, nil, &now, false))
 		assertSQL(t, sql, `-- name: SearchUsers :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -128,7 +128,7 @@ ORDER BY id ASC`)
 	})
 
 	t.Run("AllFilters", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsers, args(
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsers, args(
 			strPtr("alice@example.com"), strPtr("+1234567890"), &now, true,
 		))
 		// All SQL params kept: $1=name, $2=email, $3=phone, $4=ordersSince
@@ -152,7 +152,7 @@ ORDER BY id ASC`)
 
 func TestSearchUsersOrdered(t *testing.T) {
 	t.Run("NoOrderFlags", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrdered, []any{"alice", nil, false, false})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrdered, []any{"alice", nil, false, false})
 		assertSQL(t, sql, `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -164,7 +164,7 @@ ORDER BY
 	})
 
 	t.Run("CreatedAtDesc", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrdered, []any{"alice", nil, true, false})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrdered, []any{"alice", nil, true, false})
 		assertSQL(t, sql, `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -177,7 +177,7 @@ ORDER BY
 	})
 
 	t.Run("NameAsc", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrdered, []any{"alice", nil, false, true})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrdered, []any{"alice", nil, false, true})
 		assertSQL(t, sql, `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -190,7 +190,7 @@ ORDER BY
 	})
 
 	t.Run("AllFlags", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrdered, []any{"alice", strPtr("alice@example.com"), true, true})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrdered, []any{"alice", strPtr("alice@example.com"), true, true})
 		// $3 and $4 are bool-flag annotations only, not SQL placeholders → only $1, $2 returned
 		assertSQL(t, sql, `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
@@ -214,22 +214,22 @@ WHERE name = $1
 ORDER BY id ASC`
 
 	t.Run("BothNil", func(t *testing.T) {
-		sql, _ := db.DynamicSQL(db.SearchUsersByContact, []any{"alice", nil, nil})
+		sql, _ := dbpostgres.DynamicSQL(dbpostgres.SearchUsersByContact, []any{"alice", nil, nil})
 		assertSQL(t, sql, noContactSQL)
 	})
 
 	t.Run("EmailOnly", func(t *testing.T) {
-		sql, _ := db.DynamicSQL(db.SearchUsersByContact, []any{"alice", strPtr("alice@example.com"), nil})
+		sql, _ := dbpostgres.DynamicSQL(dbpostgres.SearchUsersByContact, []any{"alice", strPtr("alice@example.com"), nil})
 		assertSQL(t, sql, noContactSQL)
 	})
 
 	t.Run("PhoneOnly", func(t *testing.T) {
-		sql, _ := db.DynamicSQL(db.SearchUsersByContact, []any{"alice", nil, strPtr("+1234567890")})
+		sql, _ := dbpostgres.DynamicSQL(dbpostgres.SearchUsersByContact, []any{"alice", nil, strPtr("+1234567890")})
 		assertSQL(t, sql, noContactSQL)
 	})
 
 	t.Run("Both", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersByContact, []any{"alice", strPtr("alice@example.com"), strPtr("+1234567890")})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersByContact, []any{"alice", strPtr("alice@example.com"), strPtr("+1234567890")})
 		assertSQL(t, sql, `-- name: SearchUsersByContact :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -244,7 +244,7 @@ ORDER BY id ASC`)
 func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
 	t.Run("NameNil", func(t *testing.T) {
 		// When name is nil both AND lines are dropped (they share the same :if $1 annotation).
-		sql, a := db.DynamicSQL(db.SearchUsersWithSameNameAndEmail, []any{(*string)(nil)})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersWithSameNameAndEmail, []any{(*string)(nil)})
 		assertSQL(t, sql, `-- name: SearchUsersWithSameNameAndEmail :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -256,7 +256,7 @@ ORDER BY id ASC`)
 
 	t.Run("NameProvided", func(t *testing.T) {
 		// Both AND lines are kept and share the same $1 placeholder (1 arg).
-		sql, a := db.DynamicSQL(db.SearchUsersWithSameNameAndEmail, []any{strPtr("alice")})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersWithSameNameAndEmail, []any{strPtr("alice")})
 		assertSQL(t, sql, `-- name: SearchUsersWithSameNameAndEmail :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -275,7 +275,7 @@ ORDER BY id ASC`)
 func TestSearchUsersWithBlock(t *testing.T) {
 	t.Run("NameNil", func(t *testing.T) {
 		// When name is nil the entire AND (...) block is dropped.
-		sql, a := db.DynamicSQL(db.SearchUsersWithBlock, []any{(*string)(nil)})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersWithBlock, []any{(*string)(nil)})
 		assertSQL(t, sql, `-- name: SearchUsersWithBlock :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -287,7 +287,7 @@ ORDER BY id ASC`)
 
 	t.Run("NameProvided", func(t *testing.T) {
 		// When name is non-nil the block is kept; $1 is shared by both conditions.
-		sql, a := db.DynamicSQL(db.SearchUsersWithBlock, []any{strPtr("alice")})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersWithBlock, []any{strPtr("alice")})
 		assertSQL(t, sql, `-- name: SearchUsersWithBlock :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -308,7 +308,7 @@ ORDER BY id ASC`)
 func TestSearchUsersWithTopStyle(t *testing.T) {
 	t.Run("NameNil", func(t *testing.T) {
 		// When name is nil the entire AND (...) block is dropped.
-		sql, a := db.DynamicSQL(db.SearchUsersWithTopStyle, []any{(*string)(nil)})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersWithTopStyle, []any{(*string)(nil)})
 		assertSQL(t, sql, `-- name: SearchUsersWithTopStyle :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -320,7 +320,7 @@ ORDER BY id ASC`)
 
 	t.Run("NameProvided", func(t *testing.T) {
 		// When name is non-nil the block is kept; $1 is shared by both conditions.
-		sql, a := db.DynamicSQL(db.SearchUsersWithTopStyle, []any{strPtr("alice")})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersWithTopStyle, []any{strPtr("alice")})
 		assertSQL(t, sql, `-- name: SearchUsersWithTopStyle :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
@@ -341,7 +341,7 @@ ORDER BY id ASC`)
 func TestSearchUsersOrderedByID(t *testing.T) {
 	t.Run("IDAsc", func(t *testing.T) {
 		// IdAsc/IdDesc are annotation-only bool flags — not SQL placeholders
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, true, false})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrderedByID, []any{"alice", nil, true, false})
 		// trailing comma after id ASC must be stripped (id DESC removed)
 		assertSQL(t, sql, `-- name: SearchUsersOrderedByID :many
 SELECT id, name, email, created_at, phone FROM users
@@ -354,7 +354,7 @@ ORDER BY
 	})
 
 	t.Run("IDDesc", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, false, true})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrderedByID, []any{"alice", nil, false, true})
 		assertSQL(t, sql, `-- name: SearchUsersOrderedByID :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -366,7 +366,7 @@ ORDER BY
 	})
 
 	t.Run("BothFlags", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, true, true})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrderedByID, []any{"alice", nil, true, true})
 		assertSQL(t, sql, `-- name: SearchUsersOrderedByID :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -379,7 +379,7 @@ ORDER BY
 	})
 
 	t.Run("WithEmail", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", strPtr("alice@example.com"), true, true})
+		sql, a := dbpostgres.DynamicSQL(dbpostgres.SearchUsersOrderedByID, []any{"alice", strPtr("alice@example.com"), true, true})
 		// $1=name, $2=email; bool flags are annotation-only
 		assertSQL(t, sql, `-- name: SearchUsersOrderedByID :many
 SELECT id, name, email, created_at, phone FROM users

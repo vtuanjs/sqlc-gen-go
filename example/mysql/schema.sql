@@ -1,0 +1,4 @@
+CREATE TABLE filter_items (
+    id BIGINT NOT NULL PRIMARY KEY,
+    kind VARCHAR(255) NOT NULL
+);

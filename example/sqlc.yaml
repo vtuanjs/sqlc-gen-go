@@ -77,14 +77,14 @@ options:
           type: "Decimal"
 
 sql:
-  - schema: schema.sql
-    queries: queries/
+  - schema: postgres/schema.sql
+    queries: postgres/queries/
     engine: postgresql
     codegen:
-      - out: db
+      - out: dbpostgres
         plugin: golang
         options:
-          package: db
+          package: dbpostgres
           sql_package: "pgx/v5"
           emit_pointers_for_null_types: true
           emit_empty_slices: false
@@ -109,3 +109,25 @@ sql:
           emit_exported_queries: true
           disable_result_slice_pointers: true
 
+  - schema: sqlite/schema.sql
+    queries: sqlite/queries.sql
+    engine: sqlite
+    codegen:
+      - out: dbsqlite
+        plugin: golang
+        options:
+          package: dbsqlite
+          sql_package: database/sql
+          emit_dynamic_filter: true
+
+  - schema: mysql/schema.sql
+    queries: mysql/queries.sql
+    engine: mysql
+    codegen:
+      - out: dbmysql
+        plugin: golang
+        options:
+          package: dbmysql
+          sql_package: database/sql
+          sql_driver: github.com/go-sql-driver/mysql
+          emit_dynamic_filter: true
