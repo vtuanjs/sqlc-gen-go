@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.1.3/sqlc-gen-go.wasm
-    sha256: 22e0314308d8d841d2754fb3b9cb0684a1ee6130f9516db26d84bb4888ec2806
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.2.1/sqlc-gen-go.wasm
+    sha256: 2f6799f25e4e8750551ccbe1073bf8a612683e287956eef97a913d37c8ab43c2
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.1.3/sqlc-gen-go.wasm
-    sha256: 22e0314308d8d841d2754fb3b9cb0684a1ee6130f9516db26d84bb4888ec2806
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.2.1/sqlc-gen-go.wasm
+    sha256: 2f6799f25e4e8750551ccbe1073bf8a612683e287956eef97a913d37c8ab43c2
 sql:
 - engine: postgresql
   codegen:
