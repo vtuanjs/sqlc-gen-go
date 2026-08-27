@@ -82,3 +82,33 @@ SELECT * FROM users
 WHERE name = @name
   AND phone IS NOT NULL -- :if $with_phone
 ORDER BY id ASC;
+
+-- name: SearchUsersNestedOptional :many
+-- A standalone `-- :if` nested inside an already-conditional block. The inner
+-- condition gates only the line below it; dropping the outer one removes the
+-- whole block, inner line included.
+SELECT * FROM users
+WHERE TRUE
+  -- :if @email
+  AND (
+    email = @email
+    -- :if $allow_no_phone
+    OR phone IS NULL
+  )
+ORDER BY id ASC;
+
+-- name: SearchUsersNestedBlock :many
+-- The nested standalone annotation governs a whole multi-line sub-block, not
+-- just the single line that follows it.
+SELECT * FROM users
+WHERE TRUE
+  -- :if @name
+  AND (
+    name = @name
+    -- :if $or_has_orders
+    OR EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.user_id = users.id
+    )
+  )
+ORDER BY id ASC;

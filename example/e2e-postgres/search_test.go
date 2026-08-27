@@ -630,3 +630,123 @@ func TestSearchUsersWithPhone(t *testing.T) {
 		}
 	})
 }
+
+// TestSearchUsersNestedOptional covers a standalone `-- :if` nested inside an
+// already-conditional block: the inner condition gates only its own line, and
+// dropping the outer condition removes the whole block with it.
+func TestSearchUsersNestedOptional(t *testing.T) {
+	conn := setup.NewDB(t, "../postgres/schema.sql")
+	ctx := context.Background()
+	q := dbpostgres.NewSearchQueries()
+
+	target := setup.InsertUser(t, conn, "alice", "alice.nested@example.com", setup.StrPtr("+1111111111"))
+	noPhone := setup.InsertUser(t, conn, "bob", "bob.nested@example.com", nil)
+	other := setup.InsertUser(t, conn, "carol", "carol.nested@example.com", setup.StrPtr("+2222222222"))
+
+	t.Run("EmailNil_WholeBlockDropped", func(t *testing.T) {
+		// The inner flag is on, but with the outer condition inactive the whole
+		// block — inner line included — disappears.
+		users, err := q.SearchUsersNestedOptional(ctx, conn, dbpostgres.SearchUsersNestedOptionalParams{
+			AllowNoPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := setup.IDSet(users)
+		if !ids[target.ID] || !ids[noPhone.ID] || !ids[other.ID] {
+			t.Errorf("expected every user when Email is nil, got %v", users)
+		}
+	})
+
+	t.Run("EmailOnly_InnerLineDropped", func(t *testing.T) {
+		users, err := q.SearchUsersNestedOptional(ctx, conn, dbpostgres.SearchUsersNestedOptionalParams{
+			Email: setup.StrPtr("alice.nested@example.com"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != target.ID {
+			t.Errorf("got %v, want only the matching email", users)
+		}
+	})
+
+	t.Run("EmailAndFlag_InnerLineKept", func(t *testing.T) {
+		// email match OR phone IS NULL
+		users, err := q.SearchUsersNestedOptional(ctx, conn, dbpostgres.SearchUsersNestedOptionalParams{
+			Email:        setup.StrPtr("alice.nested@example.com"),
+			AllowNoPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := setup.IDSet(users)
+		if len(users) != 2 || !ids[target.ID] || !ids[noPhone.ID] {
+			t.Errorf("got %v, want the email match plus the phone-less user", users)
+		}
+	})
+
+	t.Run("FlagOnly_NoEmailMatch", func(t *testing.T) {
+		users, err := q.SearchUsersNestedOptional(ctx, conn, dbpostgres.SearchUsersNestedOptionalParams{
+			Email:        setup.StrPtr("nobody@example.com"),
+			AllowNoPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != noPhone.ID {
+			t.Errorf("got %v, want only the phone-less user", users)
+		}
+	})
+}
+
+// TestSearchUsersNestedBlock covers a nested standalone `-- :if` that governs a
+// whole multi-line sub-block rather than a single line.
+func TestSearchUsersNestedBlock(t *testing.T) {
+	conn := setup.NewDB(t, "../postgres/schema.sql")
+	ctx := context.Background()
+	q := dbpostgres.NewSearchQueries()
+
+	alice := setup.InsertUser(t, conn, "alice", "alice.nb@example.com", nil)
+	buyer := setup.InsertUser(t, conn, "buyer", "buyer.nb@example.com", nil)
+	stranger := setup.InsertUser(t, conn, "stranger", "stranger.nb@example.com", nil)
+	setup.InsertOrder(t, conn, buyer.ID, time.Now().Add(-time.Hour))
+
+	t.Run("NameNil_WholeBlockDropped", func(t *testing.T) {
+		users, err := q.SearchUsersNestedBlock(ctx, conn, dbpostgres.SearchUsersNestedBlockParams{
+			OrHasOrders: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := setup.IDSet(users)
+		if !ids[alice.ID] || !ids[buyer.ID] || !ids[stranger.ID] {
+			t.Errorf("expected every user when Name is nil, got %v", users)
+		}
+	})
+
+	t.Run("NameOnly_SubBlockDropped", func(t *testing.T) {
+		users, err := q.SearchUsersNestedBlock(ctx, conn, dbpostgres.SearchUsersNestedBlockParams{
+			Name: setup.StrPtr("alice"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice.ID {
+			t.Errorf("got %v, want only alice (EXISTS sub-block dropped)", users)
+		}
+	})
+
+	t.Run("NameAndFlag_SubBlockKept", func(t *testing.T) {
+		users, err := q.SearchUsersNestedBlock(ctx, conn, dbpostgres.SearchUsersNestedBlockParams{
+			Name:        setup.StrPtr("alice"),
+			OrHasOrders: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := setup.IDSet(users)
+		if len(users) != 2 || !ids[alice.ID] || !ids[buyer.ID] {
+			t.Errorf("got %v, want alice plus the user with an order", users)
+		}
+	})
+}

@@ -590,3 +590,122 @@ func TestSearchUsersWithPhone(t *testing.T) {
 		}
 	})
 }
+
+// TestSearchUsersNestedOptional covers a standalone `-- :if` nested inside an
+// already-conditional block: the inner condition gates only its own line, and
+// dropping the outer condition removes the whole block with it.
+func TestSearchUsersNestedOptional(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbsqlite.New(db)
+
+	target := insertUser(t, db, "alice", "alice.nested@example.com", strPtr("+1111111111"))
+	noPhone := insertUser(t, db, "bob", "bob.nested@example.com", nil)
+	other := insertUser(t, db, "carol", "carol.nested@example.com", strPtr("+2222222222"))
+
+	t.Run("EmailNil_WholeBlockDropped", func(t *testing.T) {
+		// The inner flag is on, but with the outer condition inactive the whole
+		// block — inner line included — disappears.
+		users, err := q.SearchUsersNestedOptional(ctx, dbsqlite.SearchUsersNestedOptionalParams{
+			AllowNoPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idSet(users)
+		if !ids[target.ID] || !ids[noPhone.ID] || !ids[other.ID] {
+			t.Errorf("expected every user when Email is nil, got %v", users)
+		}
+	})
+
+	t.Run("EmailOnly_InnerLineDropped", func(t *testing.T) {
+		users, err := q.SearchUsersNestedOptional(ctx, dbsqlite.SearchUsersNestedOptionalParams{
+			Email: strPtr("alice.nested@example.com"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != target.ID {
+			t.Errorf("got %v, want only the matching email", users)
+		}
+	})
+
+	t.Run("EmailAndFlag_InnerLineKept", func(t *testing.T) {
+		users, err := q.SearchUsersNestedOptional(ctx, dbsqlite.SearchUsersNestedOptionalParams{
+			Email:        strPtr("alice.nested@example.com"),
+			AllowNoPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idSet(users)
+		if len(users) != 2 || !ids[target.ID] || !ids[noPhone.ID] {
+			t.Errorf("got %v, want the email match plus the phone-less user", users)
+		}
+	})
+
+	t.Run("FlagOnly_NoEmailMatch", func(t *testing.T) {
+		users, err := q.SearchUsersNestedOptional(ctx, dbsqlite.SearchUsersNestedOptionalParams{
+			Email:        strPtr("nobody@example.com"),
+			AllowNoPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != noPhone.ID {
+			t.Errorf("got %v, want only the phone-less user", users)
+		}
+	})
+}
+
+// TestSearchUsersNestedBlock covers a nested standalone `-- :if` that governs a
+// whole multi-line sub-block rather than a single line.
+func TestSearchUsersNestedBlock(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbsqlite.New(db)
+
+	alice := insertUser(t, db, "alice", "alice.nb@example.com", nil)
+	buyer := insertUser(t, db, "buyer", "buyer.nb@example.com", nil)
+	stranger := insertUser(t, db, "stranger", "stranger.nb@example.com", nil)
+	insertOrder(t, db, buyer.ID, time.Now().Add(-time.Hour))
+
+	t.Run("NameNil_WholeBlockDropped", func(t *testing.T) {
+		users, err := q.SearchUsersNestedBlock(ctx, dbsqlite.SearchUsersNestedBlockParams{
+			OrHasOrders: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idSet(users)
+		if !ids[alice.ID] || !ids[buyer.ID] || !ids[stranger.ID] {
+			t.Errorf("expected every user when Name is nil, got %v", users)
+		}
+	})
+
+	t.Run("NameOnly_SubBlockDropped", func(t *testing.T) {
+		users, err := q.SearchUsersNestedBlock(ctx, dbsqlite.SearchUsersNestedBlockParams{
+			Name: strPtr("alice"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice.ID {
+			t.Errorf("got %v, want only alice (EXISTS sub-block dropped)", users)
+		}
+	})
+
+	t.Run("NameAndFlag_SubBlockKept", func(t *testing.T) {
+		users, err := q.SearchUsersNestedBlock(ctx, dbsqlite.SearchUsersNestedBlockParams{
+			Name:        strPtr("alice"),
+			OrHasOrders: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idSet(users)
+		if len(users) != 2 || !ids[alice.ID] || !ids[buyer.ID] {
+			t.Errorf("got %v, want alice plus the user with an order", users)
+		}
+	})
+}

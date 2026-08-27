@@ -394,3 +394,100 @@ func TestParseDynFilter_SqlcSlicePunctuatedName(t *testing.T) {
 		t.Errorf("expected punctuated slice marker to be numbered:\n%s", info.AnnotatedSQL)
 	}
 }
+
+func TestParseDynFilter_NestedStandaloneAnnotationInBlock(t *testing.T) {
+	// A standalone annotation nested inside an outer conditional block must gate
+	// only the line it governs — not be swallowed by the outer condition.
+	sql := strings.Join([]string{
+		"SELECT * FROM t",
+		"WHERE a = $1",
+		"    -- :if @marker_ids",
+		"    AND (",
+		"        t.marker_id = ANY($2::text[])",
+		"        -- :if @allow_unallocated",
+		"        OR t.marker_id IS NULL",
+		"    )",
+	}, "\n")
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("marker_ids", 2),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+	// allow_unallocated is flag-only → index len(params)+0 = 2 → $3.
+	if len(info.FlagParams) != 1 || info.FlagParams[0].Name != "allow_unallocated" {
+		t.Fatalf("unexpected flag params: %+v", info.FlagParams)
+	}
+
+	var orLine string
+	for _, line := range strings.Split(info.AnnotatedSQL, "\n") {
+		if strings.Contains(line, "OR t.marker_id IS NULL") {
+			orLine = line
+		}
+		// The nested annotation must not survive as a text-less marker line,
+		// which the runtime would drop while keeping the line it governs.
+		if strings.TrimSpace(line) == "-- :if $3" {
+			t.Errorf("nested annotation emitted as a marker line: %q\n%s", line, info.AnnotatedSQL)
+		}
+	}
+	if orLine == "" {
+		t.Fatalf("could not find the OR line in:\n%s", info.AnnotatedSQL)
+	}
+	if !strings.Contains(orLine, "-- :if $3") {
+		t.Errorf("expected the nested condition '-- :if $3' on %q\n%s", orLine, info.AnnotatedSQL)
+	}
+	if !strings.Contains(orLine, "-- :if $2") {
+		t.Errorf("expected the enclosing condition '-- :if $2' on %q\n%s", orLine, info.AnnotatedSQL)
+	}
+	t.Logf("AnnotatedSQL:\n%s", info.AnnotatedSQL)
+}
+
+func TestParseDynFilter_NestedStandaloneAnnotationOpensSubBlock(t *testing.T) {
+	// The nested condition governs a whole multi-line sub-block.
+	sql := strings.Join([]string{
+		"SELECT * FROM t",
+		"WHERE a = $1",
+		"    -- :if @staff_id",
+		"    AND (",
+		"        EXISTS (",
+		"            SELECT 1 FROM course_staff cs WHERE cs.staff_id = $2::text",
+		"        )",
+		"        -- :if @allow_unallocated_staff",
+		"        OR NOT EXISTS (",
+		"            SELECT 1 FROM course_staff cs",
+		"        )",
+		"    )",
+		"ORDER BY t.id",
+	}, "\n")
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("staff_id", 2),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+
+	for _, line := range strings.Split(info.AnnotatedSQL, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Every line of the OR NOT EXISTS sub-block carries both conditions.
+		inSubBlock := strings.Contains(trimmed, "OR NOT EXISTS") ||
+			strings.Contains(trimmed, "SELECT 1 FROM course_staff cs") && !strings.Contains(trimmed, "staff_id")
+		if inSubBlock && !strings.Contains(line, "-- :if $3") {
+			t.Errorf("expected nested condition '-- :if $3' on sub-block line %q\n%s", line, info.AnnotatedSQL)
+		}
+		// Lines after the block closes must be unconditional again.
+		if strings.Contains(trimmed, "ORDER BY t.id") && strings.Contains(line, "-- :if") {
+			t.Errorf("condition leaked past the block on %q\n%s", line, info.AnnotatedSQL)
+		}
+	}
+	t.Logf("AnnotatedSQL:\n%s", info.AnnotatedSQL)
+}

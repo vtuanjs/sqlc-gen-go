@@ -160,6 +160,112 @@ func (q *Queries) SearchUsersByIDs(ctx context.Context, arg SearchUsersByIDsPara
 	return items, nil
 }
 
+const searchUsersNestedBlock = `-- name: SearchUsersNestedBlock :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE TRUE
+-- :if $1
+  AND ( -- :if $1
+    name = ?1 -- :if $1
+    OR EXISTS ( -- :if $2 -- :if $1
+      SELECT 1 FROM orders -- :if $1 -- :if $2
+      WHERE orders.user_id = users.id -- :if $1 -- :if $2
+    ) -- :if $1 -- :if $2
+  ) -- :if $1
+ORDER BY id ASC
+`
+
+var _searchUsersNestedBlockDynQ = dynCompile(searchUsersNestedBlock)
+
+type SearchUsersNestedBlockParams struct {
+	Name        *string
+	OrHasOrders bool
+}
+
+// The nested standalone annotation governs a whole multi-line sub-block, not
+// just the single line that follows it.
+func (q *Queries) SearchUsersNestedBlock(ctx context.Context, arg SearchUsersNestedBlockParams) ([]User, error) {
+
+	dynQuery, dynArgs := _searchUsersNestedBlockDynQ.Build([]any{arg.Name, arg.OrHasOrders})
+	rows, err := q.db.QueryContext(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchUsersNestedOptional = `-- name: SearchUsersNestedOptional :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE TRUE
+-- :if $1
+  AND ( -- :if $1
+    email = ?1 -- :if $1
+    OR phone IS NULL -- :if $2 -- :if $1
+  ) -- :if $1
+ORDER BY id ASC
+`
+
+var _searchUsersNestedOptionalDynQ = dynCompile(searchUsersNestedOptional)
+
+type SearchUsersNestedOptionalParams struct {
+	Email        *string
+	AllowNoPhone bool
+}
+
+// A standalone `-- :if` nested inside an already-conditional block. The inner
+// condition gates only the line below it; dropping the outer one removes the
+// whole block, inner line included.
+func (q *Queries) SearchUsersNestedOptional(ctx context.Context, arg SearchUsersNestedOptionalParams) ([]User, error) {
+
+	dynQuery, dynArgs := _searchUsersNestedOptionalDynQ.Build([]any{arg.Email, arg.AllowNoPhone})
+	rows, err := q.db.QueryContext(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchUsersOrdered = `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = ?1

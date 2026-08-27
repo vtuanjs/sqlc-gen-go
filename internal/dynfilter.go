@@ -150,73 +150,101 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 
 	// Second pass: rewrite the SQL, replacing -- :if @name... with -- :if $N...
 	var newLines []string
-	// blockSuffix is the annotation suffix to propagate to lines inside a
-	// multi-line paren block; "" means inactive.
-	// blockDepth tracks net open parens: when it drops to ≤ 0 the block ends.
-	blockSuffix := ""
-	blockDepth := 0
+	// scopes are the conditions of the enclosing paren blocks, outermost first.
+	// A scope stays active while the running paren depth is above the depth that
+	// preceded its opening line.
+	type condScope struct {
+		suffix    string
+		baseDepth int
+	}
+	var scopes []condScope
+	depth := 0
+	// pendingSuffix is the condition of a standalone annotation waiting for the
+	// line it governs: that line alone, or its whole paren block when it opens one.
+	pendingSuffix := ""
+
+	enclosingSuffix := func() string {
+		var b strings.Builder
+		for _, s := range scopes {
+			b.WriteString(s.suffix)
+		}
+		return b.String()
+	}
+	netDepth := func(s string) int {
+		return strings.Count(s, "(") - strings.Count(s, ")")
+	}
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
-		// Propagate annotation to lines inside an open paren block.
-		if blockSuffix != "" {
-			blockDepth += strings.Count(line, "(") - strings.Count(line, ")")
-			// If this line has its own inline annotation, convert it first so the
-			// generated line carries both conditions.
-			if loc := ifAnnotationRe.FindStringIndex(line); loc != nil {
-				innerSuffix, err := buildSuffix(parseIfNames(line[loc[0]:]))
-				if err != nil {
-					return nil, err
-				}
-				line = strings.TrimRight(line[:loc[0]], " \t") + innerSuffix
+
+		ownSuffix := ""
+		if loc := ifAnnotationRe.FindStringIndex(line); loc != nil {
+			names := parseIfNames(line[loc[0]:])
+			s, err := buildSuffix(names)
+			if err != nil {
+				return nil, err
 			}
-			newLines = append(newLines, strings.TrimRight(line, " \t")+blockSuffix)
-			if blockDepth <= 0 {
-				blockSuffix = ""
-				blockDepth = 0
+			ownSuffix = s
+			line = strings.TrimRight(line[:loc[0]], " \t")
+		}
+
+		inBlock := len(scopes) > 0
+		isBlank := strings.TrimSpace(line) == ""
+
+		// A standalone annotation carries no SQL text of its own, so it has to be
+		// propagated onto the lines it governs.
+		if ownSuffix != "" && isBlank {
+			if inBlock {
+				// Nested: emitting a marker line here would leave the governed
+				// lines conditional on the enclosing block only, because the
+				// runtime cannot attach a marker that itself sits under a
+				// condition. Propagate instead.
+				pendingSuffix += ownSuffix
+				continue
+			}
+			// Top level: keep the bare marker so the runtime's block form still
+			// covers a single following line.
+			newLines = append(newLines, strings.TrimSpace(ownSuffix))
+			// When the governed line opens a paren block, propagate the condition
+			// so every interior line is skipped with it.
+			if i+1 < len(lines) && netDepth(lines[i+1]) > 0 {
+				pendingSuffix = ownSuffix
 			}
 			continue
 		}
 
-		loc := ifAnnotationRe.FindStringIndex(line)
-		if loc == nil {
+		// Plain line outside any conditional context: keep it verbatim.
+		if ownSuffix == "" && !inBlock && pendingSuffix == "" {
 			newLines = append(newLines, line)
 			continue
 		}
 
-		names := parseIfNames(line[loc[0]:])
-		suffix, err := buildSuffix(names)
-		if err != nil {
-			return nil, err
+		// A blank line must not consume the pending condition.
+		if isBlank && ownSuffix == "" && !inBlock {
+			newLines = append(newLines, line)
+			continue
 		}
 
-		prefix := strings.TrimSpace(line[:loc[0]])
-		if prefix == "" {
-			// Standalone annotation: emit the :if $N marker so dynCompile's
-			// "skipNext" logic handles the immediately following line.
-			newLines = append(newLines, strings.TrimSpace(suffix))
-			// If the next line opens a paren block, also activate block
-			// propagation so every interior line gets the same condition.
-			// blockDepth starts at 0; the block propagation code will add the
-			// net paren depth of the next line on its first iteration.
-			if i+1 < len(lines) {
-				nextLine := lines[i+1]
-				nextDepth := strings.Count(nextLine, "(") - strings.Count(nextLine, ")")
-				if nextDepth > 0 {
-					blockSuffix = suffix
-					blockDepth = 0
-				}
+		d := netDepth(line)
+		newLines = append(newLines, strings.TrimRight(line, " \t")+ownSuffix+pendingSuffix+enclosingSuffix())
+
+		if d > 0 {
+			// Conditions attached to a block-opening line govern its interior too.
+			if pendingSuffix != "" {
+				scopes = append(scopes, condScope{suffix: pendingSuffix, baseDepth: depth})
 			}
-		} else {
-			// Inline annotation
-			content := strings.TrimRight(line[:loc[0]], " \t")
-			newLines = append(newLines, content+suffix)
-			// If the content opens a paren block, propagate to subsequent lines.
-			depth := strings.Count(content, "(") - strings.Count(content, ")")
-			if depth > 0 {
-				blockSuffix = suffix
-				blockDepth = depth
+			if ownSuffix != "" {
+				scopes = append(scopes, condScope{suffix: ownSuffix, baseDepth: depth})
 			}
+		}
+		pendingSuffix = ""
+
+		depth += d
+		for len(scopes) > 0 && depth <= scopes[len(scopes)-1].baseDepth {
+			scopes = scopes[:len(scopes)-1]
+		}
+		if len(scopes) == 0 {
+			depth = 0
 		}
 	}
 

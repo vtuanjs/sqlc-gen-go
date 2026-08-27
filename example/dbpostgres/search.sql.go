@@ -162,6 +162,108 @@ func (q *SearchQueries) SearchUsersByIDs(ctx context.Context, db DBTX, arg Searc
 	return items, nil
 }
 
+const SearchUsersNestedBlock = `-- name: SearchUsersNestedBlock :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE TRUE
+-- :if $1
+  AND ( -- :if $1
+    name = $1 -- :if $1
+    OR EXISTS ( -- :if $2 -- :if $1
+      SELECT 1 FROM orders -- :if $1 -- :if $2
+      WHERE orders.user_id = users.id -- :if $1 -- :if $2
+    ) -- :if $1 -- :if $2
+  ) -- :if $1
+ORDER BY id ASC
+`
+
+var _searchUsersNestedBlockDynQ = dynCompile(SearchUsersNestedBlock)
+
+type SearchUsersNestedBlockParams struct {
+	Name        *string
+	OrHasOrders bool
+}
+
+// The nested standalone annotation governs a whole multi-line sub-block, not
+// just the single line that follows it.
+func (q *SearchQueries) SearchUsersNestedBlock(ctx context.Context, db DBTX, arg SearchUsersNestedBlockParams) ([]User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersNestedBlock")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchUsersNestedBlockDynQ.Build([]any{arg.Name, arg.OrHasOrders})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const SearchUsersNestedOptional = `-- name: SearchUsersNestedOptional :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE TRUE
+-- :if $1
+  AND ( -- :if $1
+    email = $1 -- :if $1
+    OR phone IS NULL -- :if $2 -- :if $1
+  ) -- :if $1
+ORDER BY id ASC
+`
+
+var _searchUsersNestedOptionalDynQ = dynCompile(SearchUsersNestedOptional)
+
+type SearchUsersNestedOptionalParams struct {
+	Email        *string
+	AllowNoPhone bool
+}
+
+// A standalone `-- :if` nested inside an already-conditional block. The inner
+// condition gates only the line below it; dropping the outer one removes the
+// whole block, inner line included.
+func (q *SearchQueries) SearchUsersNestedOptional(ctx context.Context, db DBTX, arg SearchUsersNestedOptionalParams) ([]User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersNestedOptional")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchUsersNestedOptionalDynQ.Build([]any{arg.Email, arg.AllowNoPhone})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const SearchUsersOrdered = `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -442,6 +544,13 @@ type SearchQuerier interface {
 	// Filter by a list of IDs. When ids is nil the condition is skipped and all
 	// users matching the name are returned (nil slice = inactive filter).
 	SearchUsersByIDs(ctx context.Context, db DBTX, arg SearchUsersByIDsParams) ([]User, error)
+	// The nested standalone annotation governs a whole multi-line sub-block, not
+	// just the single line that follows it.
+	SearchUsersNestedBlock(ctx context.Context, db DBTX, arg SearchUsersNestedBlockParams) ([]User, error)
+	// A standalone `-- :if` nested inside an already-conditional block. The inner
+	// condition gates only the line below it; dropping the outer one removes the
+	// whole block, inner line included.
+	SearchUsersNestedOptional(ctx context.Context, db DBTX, arg SearchUsersNestedOptionalParams) ([]User, error)
 	SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]User, error)
 	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]User, error)
 	SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]User, error)
