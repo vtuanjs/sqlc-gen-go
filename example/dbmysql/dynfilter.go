@@ -20,6 +20,11 @@ type dynCompiledSeg struct {
 	// All referenced args must be "active" (non-nil pointer / true bool)
 	// for this segment to be included. Empty means always include.
 	condIdxs []int
+	// sliceCut[i] is the byte offset in parts[i] where placeholder i's
+	// "/*SLICE:name*/" marker begins, or -1 when it is not a slice marker.
+	// nil when the segment holds no marker at all, so Build skips the check.
+	// Precomputed here to keep Build off any per-request string scanning.
+	sliceCut []int
 }
 
 // dynCompiledQuery is a pre-parsed dynamic SQL query.
@@ -43,7 +48,7 @@ func dynCompile(annotatedSQL string) *dynCompiledQuery {
 			return
 		}
 		parts, argNums := dynSplitPlaceholders(staticBuf.String(), &nextArgNum)
-		segs = append(segs, dynCompiledSeg{parts: parts, argNums: argNums})
+		segs = append(segs, dynCompiledSeg{parts: parts, argNums: argNums, sliceCut: dynSliceCuts(parts, argNums)})
 		staticBuf.Reset()
 	}
 
@@ -100,6 +105,7 @@ func dynCompile(annotatedSQL string) *dynCompiledQuery {
 						parts:    parts,
 						argNums:  argNums,
 						condIdxs: condIdxs,
+						sliceCut: dynSliceCuts(parts, argNums),
 					})
 				}
 				continue
@@ -115,6 +121,7 @@ func dynCompile(annotatedSQL string) *dynCompiledQuery {
 				parts:    parts,
 				argNums:  argNums,
 				condIdxs: condIdxs,
+				sliceCut: dynSliceCuts(parts, argNums),
 			})
 			continue
 		}
@@ -211,7 +218,8 @@ func (q *dynCompiledQuery) Build(args []any) (string, []any) {
 
 		// Write text parts interleaved with positional '?' placeholders.
 		for i, part := range seg.parts {
-			if before, isSlice := dynSlicePrefix(part); isSlice && i < len(seg.argNums) {
+			if seg.sliceCut != nil && i < len(seg.argNums) && seg.sliceCut[i] >= 0 {
+				before := part[:seg.sliceCut[i]]
 				argIdx := seg.argNums[i] - 1
 				if argIdx >= len(args) {
 					b.WriteString(before)
@@ -240,12 +248,25 @@ func (q *dynCompiledQuery) Build(args []any) (string, []any) {
 	return dynFinalizeQuery(b.String()), outArgs
 }
 
-func dynSlicePrefix(part string) (string, bool) {
-	start := strings.LastIndex(part, "/*SLICE:")
-	if start == -1 || !strings.HasSuffix(part, "*/") {
-		return part, false
+// dynSliceCuts precomputes where each placeholder's "/*SLICE:name*/" marker
+// begins, so Build never scans part text. Returns nil when the segment holds no
+// marker, which is the common case. Called once per segment at compile time.
+func dynSliceCuts(parts []string, argNums []int) []int {
+	var cuts []int
+	for i := range argNums {
+		start := strings.LastIndex(parts[i], "/*SLICE:")
+		if start == -1 || !strings.HasSuffix(parts[i], "*/") {
+			continue
+		}
+		if cuts == nil {
+			cuts = make([]int, len(argNums))
+			for j := range cuts {
+				cuts[j] = -1
+			}
+		}
+		cuts[i] = start
 	}
-	return part[:start], true
+	return cuts
 }
 
 // dynWriteSlice expands a slice arg into comma-separated placeholders. Empty

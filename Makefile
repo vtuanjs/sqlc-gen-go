@@ -11,7 +11,13 @@ all:
 	make bin/sqlc-gen-go
 	make bin/sqlc-gen-go.wasm
 
-bin/sqlc-gen-go: bin go.mod go.sum $(wildcard **/*.go)
+# $(wildcard **/*.go) is not a recursive glob in make and misses the templates
+# entirely, so a template-only edit used to leave a stale plugin behind and
+# generate-example would silently emit the previous version's code.
+PLUGIN_SOURCES := $(shell find . -name '*.go' -not -path './example/*' -not -path './bin/*')
+PLUGIN_TEMPLATES := $(shell find internal/templates -name '*.tmpl')
+
+bin/sqlc-gen-go: bin go.mod go.sum $(PLUGIN_SOURCES) $(PLUGIN_TEMPLATES)
 	cd plugin && go build -o ../bin/sqlc-gen-go ./main.go
 
 bin/sqlc-gen-go.wasm: bin/sqlc-gen-go
