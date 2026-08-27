@@ -86,6 +86,36 @@ func (mr *MockSearchQuerierMockRecorder) SearchUsersByIDs(ctx, db, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersByIDs", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersByIDs), ctx, db, arg)
 }
 
+// SearchUsersNestedBlock mocks base method.
+func (m *MockSearchQuerier) SearchUsersNestedBlock(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchUsersNestedBlockParams) ([]dbpostgres.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchUsersNestedBlock", ctx, db, arg)
+	ret0, _ := ret[0].([]dbpostgres.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchUsersNestedBlock indicates an expected call of SearchUsersNestedBlock.
+func (mr *MockSearchQuerierMockRecorder) SearchUsersNestedBlock(ctx, db, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersNestedBlock", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersNestedBlock), ctx, db, arg)
+}
+
+// SearchUsersNestedOptional mocks base method.
+func (m *MockSearchQuerier) SearchUsersNestedOptional(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchUsersNestedOptionalParams) ([]dbpostgres.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchUsersNestedOptional", ctx, db, arg)
+	ret0, _ := ret[0].([]dbpostgres.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchUsersNestedOptional indicates an expected call of SearchUsersNestedOptional.
+func (mr *MockSearchQuerierMockRecorder) SearchUsersNestedOptional(ctx, db, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersNestedOptional", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersNestedOptional), ctx, db, arg)
+}
+
 // SearchUsersOrdered mocks base method.
 func (m *MockSearchQuerier) SearchUsersOrdered(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchUsersOrderedParams) ([]dbpostgres.User, error) {
 	m.ctrl.T.Helper()
