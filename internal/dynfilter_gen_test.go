@@ -163,16 +163,30 @@ func testGenerateDynamicFilter(t *testing.T, tc dynamicFilterTest) {
 		t.Logf("dynfilter file:\n%s", dynfilterFile)
 		t.Error("expected DynamicSQL function in dynfilter.go")
 	}
-	if tc.sqlite && !strings.Contains(dynfilterFile, "const dynBracketIdentifiers = true") {
+	// The generated file is tailored to one engine at generation time: it must
+	// carry no runtime engine switches, only that engine's own lexing rules.
+	if strings.Contains(dynfilterFile, "const dyn") {
 		t.Logf("dynfilter file:\n%s", dynfilterFile)
-		t.Error("expected SQLite dynamic SQL to treat [name] as a quoted identifier")
+		t.Error("expected no engine feature constants in dynfilter.go")
 	}
-	if !tc.sqlite && !strings.Contains(dynfilterFile, "const dynBracketIdentifiers = false") {
+	if got := strings.Contains(dynfilterFile, "st.quote == '['"); got != tc.sqlite {
 		t.Logf("dynfilter file:\n%s", dynfilterFile)
-		t.Error("expected non-SQLite dynamic SQL to treat [ ] as a subscript, not an identifier")
+		t.Errorf("bracket-quoted identifier lexing emitted = %v, want %v (sqlite=%v)", got, tc.sqlite, tc.sqlite)
 	}
-	if tc.mysql && !strings.Contains(dynfilterFile, "const dynQuestionMarkPlaceholders = true") {
-		t.Errorf("expected MySQL dynamic SQL to use question-mark placeholders:\n%s", dynfilterFile)
+	postgres := !tc.sqlite && !tc.mysql
+	if got := strings.Contains(dynfilterFile, "func dynDollarDelim("); got != postgres {
+		t.Logf("dynfilter file:\n%s", dynfilterFile)
+		t.Errorf("dollar-quoted string lexing emitted = %v, want %v (postgresql=%v)", got, postgres, postgres)
+	}
+	if got := strings.Contains(dynfilterFile, "func dynWritePlaceholder("); got == tc.mysql {
+		t.Logf("dynfilter file:\n%s", dynfilterFile)
+		t.Errorf("numbered $N placeholder writer emitted = %v, want %v", got, !tc.mysql)
+	}
+	if tc.mysql && !strings.Contains(dynfilterFile, "nextArgNum") {
+		t.Errorf("expected MySQL dynamic SQL to number bare '?' placeholders:\n%s", dynfilterFile)
+	}
+	if !tc.mysql && strings.Contains(dynfilterFile, "nextArgNum") {
+		t.Errorf("expected only MySQL to number bare '?' placeholders:\n%s", dynfilterFile)
 	}
 
 	// Verify the SQL constant still has -- :if $N markers (used by dynCompile)
