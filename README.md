@@ -230,19 +230,19 @@ ORDER BY
   id ASC,  -- :if @id_asc
   -- :if @id_desc
   id DESC,
-  TRUE
+  1 = 1
 ```
 
 This one mixes both styles: `-- :if @email` and `-- :if @id_asc` are inline (trailing the line they gate), while `-- :if @id_desc` is top-level (gating the `id DESC,` line below it). The two styles can be combined freely in the same query.
 
-**Use `TRUE` sentinels to keep the query valid**
+**Use static sentinels to keep the query valid**
 
 Removing a line can leave syntax that no longer parses: a leading `AND`, a dangling comma, or a clause keyword with nothing under it. Write every removable line so it is *independently* droppable, by anchoring the clause with a static entry:
 
-- `WHERE TRUE` first, so every condition line can begin with `AND` — otherwise dropping the first condition leaves `WHERE AND b = …`
-- a trailing `TRUE` in `ORDER BY`, so every entry can end with `,` — otherwise dropping the last entry leaves `ORDER BY id ASC,`
+- `WHERE TRUE` first, so every condition line can begin with `AND` — otherwise dropping the first condition leaves `WHERE AND b = …` (`WHERE 1 = 1` works equally well if you prefer it)
+- a trailing `1 = 1` in `ORDER BY`, so every entry can end with `,` — otherwise dropping the last entry leaves `ORDER BY id ASC,`. **`ORDER BY … , TRUE` is not portable** — PostgreSQL rejects a bare non-integer constant in `ORDER BY`, so use the `1 = 1` expression there
 
-`1 = 1` works equally well if you prefer it. The same rule applies to any comma-separated list: a removable `SELECT` column must not be the first or last entry.
+The same rule applies to any comma-separated list: a removable `SELECT` column must not be the first or last entry.
 
 `Build` does repair two cases on its own, but **only on the query's last line** — it deliberately does not rescan the whole query on every call, which would put per-line work on the hot path of every request:
 
@@ -259,11 +259,11 @@ WHERE a = @a
 ORDER BY
   id ASC,  -- :if @id_asc
   id DESC, -- :if @id_desc
-  TRUE
+  1 = 1
 LIMIT 10
 ```
 
-**Engine caveat** — sqlc's SQLite parser discards a `-- :if` comment that sits on a statement's last line, so on SQLite an annotation must never be the final token before the `;`. A trailing `TRUE` sentinel satisfies this too. sqlc's MySQL parser has no `@name` syntax at all: bind values with `sqlc.arg()`/`sqlc.slice()`, while the `-- :if @name` annotation still refers to parameters by name.
+**Engine caveat** — sqlc's SQLite parser discards a `-- :if` comment that sits on a statement's last line, so on SQLite an annotation must never be the final token before the `;`. A trailing sentinel satisfies this too. sqlc's MySQL parser has no `@name` syntax at all: bind values with `sqlc.arg()`/`sqlc.slice()`, while the `-- :if @name` annotation still refers to parameters by name.
 
 **Generated Go**
 
@@ -380,7 +380,7 @@ go test ./test/... -v
 
 | Test | Sub-tests | What is covered |
 |---|---|---|
-| `TestDynamicSQL` | 36 | Placeholder remapping, gap handling, ORDER BY clauses, last-line cleanup of orphaned WHERE/GROUP BY/HAVING, `TRUE`-sentinel clauses followed by `LIMIT`, EXISTS blocks, empty-slice gating, `NilableSlice` |
+| `TestDynamicSQL` | 36 | Placeholder remapping, gap handling, ORDER BY clauses, last-line cleanup of orphaned WHERE/GROUP BY/HAVING, sentinel-anchored clauses followed by `LIMIT`, EXISTS blocks, empty-slice gating, `NilableSlice` |
 | `TestDynamicSQL_LexicalContext` | 16 | Markers inside string literals (incl. dollar-quoted, `E'…'`, backslash-escaped, multi-line), quoted identifiers, nested comments |
 | `TestDynamicSQLSlices` | 7 | `sqlc.slice()` expansion, repeated and empty slices, slice-marker edge cases across all three engines |
 | `TestSearchUsers` | 9 | Optional email/phone/date filter combinations on generated search query |
