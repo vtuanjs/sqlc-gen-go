@@ -2,6 +2,7 @@ package e2epostgres
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -96,4 +97,43 @@ func TestDynamicFilter(t *testing.T) {
 	})
 
 	_ = id1
+}
+
+func TestDynamicFilterPreservesRequiredPredicate(t *testing.T) {
+	conn := setup.NewDB(t, "../postgres/schema.sql")
+	ctx := context.Background()
+	q := dbpostgres.NewFilterQueries()
+
+	wanted := setup.InsertFilterItem(t, conn, "scope-regression", "a", "(target", "c")
+	setup.InsertFilterItem(t, conn, "other-scope", "a", "(target", "c")
+
+	for _, enabled := range []bool{false, true} {
+		var literalSuffix, commentSuffix *string
+		if enabled {
+			literalSuffix = setup.StrPtr("target")
+			commentSuffix = setup.StrPtr("(target")
+		}
+		t.Run(fmt.Sprintf("literal/enabled=%v", enabled), func(t *testing.T) {
+			ids, err := q.SearchFilterItemsLiteral(ctx, conn, dbpostgres.SearchFilterItemsLiteralParams{
+				Suffix: literalSuffix, Kind: "scope-regression",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(ids, []int64{wanted}) {
+				t.Fatalf("required kind filter lost: got %v, want [%d]", ids, wanted)
+			}
+		})
+		t.Run(fmt.Sprintf("comment/enabled=%v", enabled), func(t *testing.T) {
+			ids, err := q.SearchFilterItemsComment(ctx, conn, dbpostgres.SearchFilterItemsCommentParams{
+				Suffix: commentSuffix, Kind: "scope-regression",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(ids, []int64{wanted}) {
+				t.Fatalf("required kind filter lost: got %v, want [%d]", ids, wanted)
+			}
+		})
+	}
 }

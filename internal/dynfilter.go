@@ -70,6 +70,10 @@ type FlagParam struct {
 //	-- :if @b                          (block: applies to next line)
 //	AND b = $2
 func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, error) {
+	return parseDynFilter(sql, params, "postgresql")
+}
+
+func parseDynFilter(sql string, params []*plugin.Parameter, engine string) (*DynFilterInfo, error) {
 	// Build map: column name -> param number (1-based)
 	paramByName := make(map[string]int32)
 	for _, p := range params {
@@ -81,6 +85,7 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 	sql = numberSqlcSlices(sql, paramByName)
 
 	lines := strings.Split(sql, "\n")
+	parenDeltas := dynParenDeltas(sql, engine)
 
 	// First pass: collect all :if annotations to find which params are
 	// conditional and which are flag-only.
@@ -170,9 +175,6 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 		}
 		return b.String()
 	}
-	netDepth := func(s string) int {
-		return strings.Count(s, "(") - strings.Count(s, ")")
-	}
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
@@ -207,7 +209,7 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 			newLines = append(newLines, strings.TrimSpace(ownSuffix))
 			// When the governed line opens a paren block, propagate the condition
 			// so every interior line is skipped with it.
-			if i+1 < len(lines) && netDepth(lines[i+1]) > 0 {
+			if i+1 < len(lines) && parenDeltas[i+1] > 0 {
 				pendingSuffix = ownSuffix
 			}
 			continue
@@ -225,7 +227,7 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 			continue
 		}
 
-		d := netDepth(line)
+		d := parenDeltas[i]
 		newLines = append(newLines, strings.TrimRight(line, " \t")+ownSuffix+pendingSuffix+enclosingSuffix())
 
 		if d > 0 {

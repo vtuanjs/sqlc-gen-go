@@ -70,3 +70,33 @@ func (mr *MockFilterQuerierMockRecorder) SearchFilterItems(ctx, db, arg any) *go
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchFilterItems", reflect.TypeOf((*MockFilterQuerier)(nil).SearchFilterItems), ctx, db, arg)
 }
+
+// SearchFilterItemsComment mocks base method.
+func (m *MockFilterQuerier) SearchFilterItemsComment(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchFilterItemsCommentParams) ([]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchFilterItemsComment", ctx, db, arg)
+	ret0, _ := ret[0].([]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchFilterItemsComment indicates an expected call of SearchFilterItemsComment.
+func (mr *MockFilterQuerierMockRecorder) SearchFilterItemsComment(ctx, db, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchFilterItemsComment", reflect.TypeOf((*MockFilterQuerier)(nil).SearchFilterItemsComment), ctx, db, arg)
+}
+
+// SearchFilterItemsLiteral mocks base method.
+func (m *MockFilterQuerier) SearchFilterItemsLiteral(ctx context.Context, db dbpostgres.DBTX, arg dbpostgres.SearchFilterItemsLiteralParams) ([]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchFilterItemsLiteral", ctx, db, arg)
+	ret0, _ := ret[0].([]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchFilterItemsLiteral indicates an expected call of SearchFilterItemsLiteral.
+func (mr *MockFilterQuerierMockRecorder) SearchFilterItemsLiteral(ctx, db, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchFilterItemsLiteral", reflect.TypeOf((*MockFilterQuerier)(nil).SearchFilterItemsLiteral), ctx, db, arg)
+}
