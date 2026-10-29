@@ -464,8 +464,8 @@ func columnsToStruct(req *plugin.GenerateRequest, options *opts.Options, name st
 // applyDynFilter parses :if annotations in gq.SQL, adjusts the params struct
 // (pointer types for conditional SQL params, bool fields for flag-only params),
 // and sets gq.HasDynFilter / gq.DynFilterArgs.
-func applyDynFilter(_ *plugin.GenerateRequest, options *opts.Options, gq *Query, sqlParams []*plugin.Parameter, sqlpkg opts.SQLDriver) error {
-	info, err := ParseDynFilter(gq.SQL, sqlParams)
+func applyDynFilter(req *plugin.GenerateRequest, options *opts.Options, gq *Query, sqlParams []*plugin.Parameter, sqlpkg opts.SQLDriver) error {
+	info, err := parseDynFilter(gq.SQL, sqlParams, req.Settings.Engine)
 	if err != nil {
 		return fmt.Errorf("query %s: %w", gq.MethodName, err)
 	}

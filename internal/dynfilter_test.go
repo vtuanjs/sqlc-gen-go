@@ -491,3 +491,75 @@ func TestParseDynFilter_NestedStandaloneAnnotationOpensSubBlock(t *testing.T) {
 	}
 	t.Logf("AnnotatedSQL:\n%s", info.AnnotatedSQL)
 }
+
+// Parentheses in SQL data must not extend (or prematurely close) a conditional
+// scope: predicates after it, such as publication/access checks, are mandatory.
+func TestParseDynFilter_QuotedParenthesesDoNotChangeScope(t *testing.T) {
+	cases := []struct {
+		name      string
+		predicate string
+	}{
+		{"string", "AND name = '(' || $1::text"},
+		{"escaped_quote", "AND name = 'it''s (' || $1::text"},
+		{"escape_string", `AND name = E'it\'s (' || $1::text`},
+		{"quoted_identifier", `AND "name(" = $1`},
+		{"dollar_string", "AND name = $$($$ || $1::text"},
+		{"tagged_dollar_string", "AND name = $tag$($tag$ || $1::text"},
+		{"block_comment", "AND name = $1 /* ( */"},
+		{"nested_block_comment", "AND name = $1 /* outer /* ) */ ( */"},
+		{"line_comment", "AND name = $1 -- note ("},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, standalone := range []bool{false, true} {
+				predicate := "  " + tc.predicate + " -- :if @name"
+				if standalone {
+					predicate = "  -- :if @name\n  " + tc.predicate
+				}
+				sql := "SELECT id FROM items\nWHERE TRUE\n" + predicate + "\n  AND published = TRUE\nORDER BY id"
+				info, err := ParseDynFilter(sql, []*plugin.Parameter{makeParam("name", 1)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.HasSuffix(info.AnnotatedSQL, "\n  AND published = TRUE\nORDER BY id") {
+					t.Errorf("standalone=%v: condition escaped its predicate:\n%s", standalone, info.AnnotatedSQL)
+				}
+			}
+		})
+	}
+}
+
+func TestParseDynFilter_CommentsDoNotChangeBlockScope(t *testing.T) {
+	for _, comment := range []string{"-- capacity (tonnes", "/* capacity ( */", "/* outer /* ) */ ( */"} {
+		sql := "SELECT id FROM items\nWHERE TRUE\n  -- :if @capacity\n  AND EXISTS (\n    SELECT 1 FROM attributes\n    WHERE value >= $1 " + comment + "\n  )\n  AND published = TRUE\nORDER BY id"
+		info, err := ParseDynFilter(sql, []*plugin.Parameter{makeParam("capacity", 1)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(info.AnnotatedSQL, "  ) -- :if $1\n  AND published = TRUE\nORDER BY id") {
+			t.Errorf("comment %q changed conditional block boundaries:\n%s", comment, info.AnnotatedSQL)
+		}
+	}
+}
+
+func TestParseDynFilter_StringDoesNotCloseConditionalBlock(t *testing.T) {
+	sql := "SELECT id FROM items\nWHERE TRUE\n  AND EXISTS ( -- :if @name\n    SELECT 1 FROM attributes\n    WHERE name = ')' || $1\n      AND active = TRUE\n  )\n  AND published = TRUE\nORDER BY id"
+	info, err := ParseDynFilter(sql, []*plugin.Parameter{makeParam("name", 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(info.AnnotatedSQL, "      AND active = TRUE -- :if $1\n  ) -- :if $1\n  AND published = TRUE\nORDER BY id") {
+		t.Fatalf("string closed conditional block prematurely:\n%s", info.AnnotatedSQL)
+	}
+}
+
+func TestParseDynFilter_ContinuedEscapeStringDoesNotChangeScope(t *testing.T) {
+	sql := "SELECT id FROM items\nWHERE TRUE\n  AND EXISTS ( -- :if @name\n    SELECT 1\n    WHERE name = E'foo'\n      'it\\'s (' || $1\n  )\n  AND published = TRUE\nORDER BY id"
+	info, err := ParseDynFilter(sql, []*plugin.Parameter{makeParam("name", 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(info.AnnotatedSQL, "  ) -- :if $1\n  AND published = TRUE\nORDER BY id") {
+		t.Fatalf("continued escape string changed scope:\n%s", info.AnnotatedSQL)
+	}
+}

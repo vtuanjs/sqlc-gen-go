@@ -110,11 +110,95 @@ func (q *FilterQueries) SearchFilterItems(ctx context.Context, db DBTX, arg Sear
 	return items, nil
 }
 
+const SearchFilterItemsComment = `-- name: SearchFilterItemsComment :many
+SELECT id
+FROM filter_items
+WHERE TRUE
+-- :if $1
+  AND EXISTS ( -- :if $1
+    SELECT 1 -- :if $1
+    WHERE b = $1::text -- optional (suffix -- :if $1
+  ) -- :if $1
+  AND kind = $2
+ORDER BY id
+`
+
+var _searchFilterItemsCommentDynQ = dynCompile(SearchFilterItemsComment)
+
+type SearchFilterItemsCommentParams struct {
+	Suffix *string
+	Kind   string
+}
+
+func (q *FilterQueries) SearchFilterItemsComment(ctx context.Context, db DBTX, arg SearchFilterItemsCommentParams) ([]int64, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "FilterQueries.SearchFilterItemsComment")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchFilterItemsCommentDynQ.Build([]any{arg.Suffix, arg.Kind})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const SearchFilterItemsLiteral = `-- name: SearchFilterItemsLiteral :many
+SELECT id
+FROM filter_items
+WHERE TRUE
+  AND b = '(' || $1::text -- :if $1
+  AND kind = $2
+ORDER BY id
+`
+
+var _searchFilterItemsLiteralDynQ = dynCompile(SearchFilterItemsLiteral)
+
+type SearchFilterItemsLiteralParams struct {
+	Suffix *string
+	Kind   string
+}
+
+func (q *FilterQueries) SearchFilterItemsLiteral(ctx context.Context, db DBTX, arg SearchFilterItemsLiteralParams) ([]int64, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "FilterQueries.SearchFilterItemsLiteral")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchFilterItemsLiteralDynQ.Build([]any{arg.Suffix, arg.Kind})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type FilterQuerier interface {
 	// An optional filter in the middle of the WHERE clause: dropping @b renumbers
 	// the placeholder for @c.
 	ListFilterItems(ctx context.Context, db DBTX, arg ListFilterItemsParams) ([]ListFilterItemsRow, error)
 	SearchFilterItems(ctx context.Context, db DBTX, arg SearchFilterItemsParams) ([]int64, error)
+	SearchFilterItemsComment(ctx context.Context, db DBTX, arg SearchFilterItemsCommentParams) ([]int64, error)
+	SearchFilterItemsLiteral(ctx context.Context, db DBTX, arg SearchFilterItemsLiteralParams) ([]int64, error)
 }
 
 var _ FilterQuerier = (*FilterQueries)(nil)
